@@ -17,6 +17,10 @@ export class AuthService {
                 throw new NotFoundException('User not found');
             }
 
+            if (!user.isActivate) {
+                throw new UnauthorizedException('Account is banned');
+            }
+
             const hashedPassword = bcrypt.hashSync(LoginUserDto.password, user.password.slice(0, 29));
             const isPasswordMatching = hashedPassword === user.password;
             if (!isPasswordMatching) {

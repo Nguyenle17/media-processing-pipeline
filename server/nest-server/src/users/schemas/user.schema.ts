@@ -22,6 +22,9 @@ export class User {
 
     @Prop()
     refreshToken?: string;
+
+    @Prop({ default: false })
+    isActivate: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

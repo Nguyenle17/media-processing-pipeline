@@ -29,7 +29,7 @@ export class UsersService {
     }
 
     async findAll() {
-        return await this.userModel.find().exec();
+        return await this.userModel.find().select('-password -refreshToken');
     }
 
     async updateRefreshToken(id: any, token: string) {
@@ -46,5 +46,21 @@ export class UsersService {
             { selectedModel: model },
             { new: true },
         ).exec();
+    }
+
+    async deleteUserById(id: string) {
+        return this.userModel.findByIdAndDelete(id);
+    }
+
+    async updateRole(id: string, role: string) {
+        return this.userModel.findByIdAndUpdate(id, { role }, { new: true });
+    }
+
+    async updateStatus(id: string, isActive: boolean) {
+        return this.userModel.findByIdAndUpdate(
+            id,
+            { isActive },
+            { new: true }
+        );
     }
 }
