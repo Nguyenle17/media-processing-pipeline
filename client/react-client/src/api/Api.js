@@ -41,7 +41,7 @@ class Api {
             headers: { 'Authorization': `Bearer ${this.token}` }
         });
 
-        if (response.status === 401) {
+        if (response.status === 401 && this.token) {
             await this.refreshToken();
             return this.get(ENDPOINT);
         }
@@ -63,7 +63,7 @@ class Api {
             body: isFormData ? DATA : JSON.stringify(DATA),
         });
 
-        if (response.status === 401) {
+        if (response.status === 401 && this.token) {
             await this.refreshToken();
             return this.post(ENDPOINT, DATA, HEADERS);
         }
@@ -85,7 +85,7 @@ class Api {
             body: isFormData ? DATA : JSON.stringify(DATA),
         });
 
-        if (response.status === 401) {
+        if (response.status === 401 && this.token) {
             await this.refreshToken();
             return this.put(ENDPOINT, DATA);
         }
@@ -101,12 +101,34 @@ class Api {
             headers: { 'Authorization': `Bearer ${this.token}` }
         });
 
-        if (response.status === 401) {
+        if (response.status === 401 && this.token) {
             await this.refreshToken();
             return this.delete(ENDPOINT);
         }
 
         if (!response.ok) throw new Error(`DELETE ${ENDPOINT} failed: ${response.status}`);
+        return response.json();
+    }
+
+    async patch(ENDPOINT, DATA) {
+        const isFormData = DATA instanceof FormData;
+
+        const response = await fetch(this.BASE_URL + ENDPOINT, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: {
+                'Authorization': `Bearer ${this.token}`,
+                ...(!isFormData && { 'Content-Type': 'application/json' }),
+            },
+            body: isFormData ? DATA : JSON.stringify(DATA),
+        });
+
+        if (response.status === 401 && this.token) {
+            await this.refreshToken();
+            return this.patch(ENDPOINT, DATA);
+        }
+
+        if (!response.ok) throw new Error(`PATCH ${ENDPOINT} failed: ${response.status}`);
         return response.json();
     }
 }

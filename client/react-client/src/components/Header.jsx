@@ -2,6 +2,14 @@ import { useContext, useState, useRef, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { Link, useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import {
+    LayoutDashboard,
+    History,
+    FolderKanban,
+    Languages,
+    Settings,
+} from "lucide-react";
+
 
 export default function Header() {
     const { user, logout } = useContext(AuthContext);
@@ -20,12 +28,32 @@ export default function Header() {
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    const navLinks = [
-        { to: '/', label: 'Home' },
-        { to: '/translate', label: 'Translate' },
-        { to: '/summary', label: 'Summary' },
-        { to: '/extract-audio', label: 'Extract Audio' },
-        { to: '/features', label: 'Features' },
+    let navLinks = null;
+
+    if (user && user.role === 'admin') {
+        navLinks = [
+            { to: '/Dashboard', label: 'Dashboard' },
+            { to: '/All-users', label: 'All Users' },
+            { to: '/Unban-Users', label: 'Unban Users' },
+            { to: '/Update-role', label: 'Update Role' },
+        ];
+    }
+    else {
+        navLinks = [
+            { to: '/', label: 'Home' },
+            { to: '/translate', label: 'Translate' },
+            { to: '/summary', label: 'Summary' },
+            { to: '/extract-audio', label: 'Extract Audio' },
+            { to: '/features', label: 'Features' },
+        ];
+    }
+
+    const menuItems = [
+        { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+        { to: '/history', icon: History, label: 'History' },
+        { to: '/projects', icon: FolderKanban, label: 'My Videos' },
+        { to: '/translate', icon: Languages, label: 'Translate' },
+        { to: '/settings', icon: Settings, label: 'Settings' },
     ];
 
     const isActive = (path) => location.pathname === path;
@@ -115,12 +143,13 @@ export default function Header() {
                     margin: 4px 0;
                 }
                 .dropdown-user {
-                    padding: 10px 12px 8px;
+                    padding: 12px 16px 8px;
                     border-bottom: 1px solid rgba(255,255,255,0.06);
                     margin-bottom: 4px;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 }
-                .dropdown-user-name { font-size: 13px; font-weight: 700; color: #fff; }
-                .dropdown-user-email { font-size: 11px; color: #52525b; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+                .dropdown-user-name { font-size: 13px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                .dropdown-user-email { font-size: 11px; color: #52525b; margin-top: 2px; font-family: 'JetBrains Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
                 .auth-btns { display: flex; gap: 8px; align-items: center; }
                 .btn-login {
                     padding: 6px 14px;
@@ -179,20 +208,19 @@ export default function Header() {
                                             <div className="dropdown-user-name">{user.name || 'User'}</div>
                                             <div className="dropdown-user-email">{user.email || ''}</div>
                                         </div>
-                                        {[
-                                            { to: '/dashboard', icon: '🏠', label: 'Dashboard' },
-                                            { to: '/history', icon: '📺', label: 'History' },
-                                            { to: '/projects', icon: '🎬', label: 'My Videos' },
-                                            { to: '/translate', icon: '🌐', label: 'Translate' },
-                                            { to: '/settings', icon: '⚙️', label: 'Settings' },
-                                        ].map(({ to, icon, label }) => (
-                                            <Link key={to} to={to} className="dropdown-item" onClick={() => setIsOpen(false)}>
-                                                <span>{icon}</span> {label}
-                                            </Link>
-                                        ))}
+                                        {menuItems.map((item) => {
+                                            const Icon = item.icon;
+
+                                            return (
+                                                <Link to={item.to} key={item.to} className="dropdown-item" onClick={() => setIsOpen(false)}>
+                                                    <Icon size={18} strokeWidth={2} />
+                                                    <span>{item.label}</span>
+                                                </Link>
+                                            );
+                                        })}
                                         <div className="dropdown-divider" />
                                         <button className="dropdown-item danger" onClick={() => { setIsOpen(false); logout(); navigate('/'); }}>
-                                            <span>🚪</span> Logout
+                                            Sign Out
                                         </button>
                                     </div>
                                 )}

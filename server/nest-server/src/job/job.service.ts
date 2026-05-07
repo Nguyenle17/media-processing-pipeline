@@ -1,12 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Queue } from 'bullmq';
-import { InjectQueue } from '@nestjs/bullmq';
 import { Job } from './schemas/job.schema';
 import { Chunk } from './schemas/chunk.schema';
-import { JwtService } from '@nestjs/jwt';
-import { NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 
 

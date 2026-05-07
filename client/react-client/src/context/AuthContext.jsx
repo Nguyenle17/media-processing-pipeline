@@ -41,14 +41,15 @@ export const AuthProvider = ({ children }) => {
             setUser(decoded);
             scheduleRefresh(newToken);
         } catch {
-            logout();
+            setToken(null);
+            setUser(null);
+            Api.setToken(null);
         }
     };
 
     useEffect(() => {
         const run = async () => {
             if (token) {
-                localStorage.setItem("token", token);
                 try {
                     const decoded = jwtDecode(token);
                     const currentTime = Date.now() / 1000;
@@ -61,39 +62,49 @@ export const AuthProvider = ({ children }) => {
                         localStorage.setItem("settings", decoded.settings || 'tiny');
                         scheduleRefresh(token);
                     }
-
                 } catch {
-                    logout();
+                    localStorage.removeItem("token");
+                    localStorage.removeItem("settings");
+                    setToken(null);
+                    setUser(null);
+                    Api.setToken(null);
                 }
             } else {
-                try {
-                    await silentRefresh();
-                } catch {
-                    setUser(null);
-                }
+                setUser(null);
             }
+
             setLoading(false);
         };
+
         run();
     }, []);
 
     const login = (newToken) => {
+        localStorage.setItem("token", newToken);
         setToken(newToken);
         Api.setToken(newToken);
+
         const decoded = jwtDecode(newToken);
         setUser(decoded);
         scheduleRefresh(newToken);
     };
 
-    const logout = () => {
+    const logout = async () => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+
+        const hasToken = localStorage.getItem("token");
+
         localStorage.removeItem("token");
         setToken(null);
         setUser(null);
         Api.setToken(null);
-        Api.post('/auth/logout', {}).catch(() => { });
-    };
 
+        if (hasToken) {
+            try {
+                await Api.post('/auth/logout', {});
+            } catch { }
+        }
+    };
     if (loading) return null;
 
     return (

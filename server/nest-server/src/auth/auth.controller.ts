@@ -101,6 +101,10 @@ export class AuthController {
         console.log('Raw cookie header:', (req as any).headers.cookie);
         console.log('Parsed cookies:', (req as any).cookies);
         const refreshToken = (req as any).cookies?.refreshToken;
+        if (!refreshToken) {
+            console.warn('No refresh token found in cookies');
+            return { error: 'No refresh token provided' };
+        }
         return this.authService.refreshToken(refreshToken);
     }
 

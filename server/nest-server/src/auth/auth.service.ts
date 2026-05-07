@@ -38,7 +38,7 @@ export class AuthService {
             res.cookie('refreshToken', refreshToken, {
                 httpOnly: true,
                 secure: false,
-                sameSite: 'strict',
+                sameSite: 'lax',
                 path: '/',
             });
             return {

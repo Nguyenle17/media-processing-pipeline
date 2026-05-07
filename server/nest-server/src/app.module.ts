@@ -6,6 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { VideoModule } from './video/video.module';
 import { FileModule } from './file/file.module';
+import { AdminModule } from './admin/admin.module';
 import * as dotenv from 'dotenv';
 import { BullModule } from '@nestjs/bullmq';
 import { JobModule } from './job/job.module';
@@ -32,7 +33,7 @@ dotenv.config();
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get<string>('MONGODB_URI'),
       })
-    }), AuthModule, VideoModule, FileModule, JobModule, RedisModule
+    }), AuthModule, VideoModule, FileModule, JobModule, RedisModule, AdminModule
   ],
   controllers: [AppController],
   providers: [AppService, RedisService],

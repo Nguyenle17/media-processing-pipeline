@@ -23,7 +23,7 @@ export class User {
     @Prop()
     refreshToken?: string;
 
-    @Prop({ default: false })
+    @Prop({ default: true })
     isActivate: boolean;
 }
 

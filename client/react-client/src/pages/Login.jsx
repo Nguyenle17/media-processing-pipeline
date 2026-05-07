@@ -45,7 +45,7 @@ export default function Login() {
         try {
             window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`;
         } catch (err) {
-            setError('Đăng nhập Google thất bại. Vui lòng thử lại.');
+            setError('Login with Google failed. Please try again.');
             console.error('Google login error:', err);
         } finally {
             setGoogleLoading(false);
@@ -64,7 +64,7 @@ export default function Login() {
                         </svg>
                     </div>
                     <h2 className="text-xl font-semibold text-gray-800">Welcome back</h2>
-                    <p className="text-sm text-gray-500 mt-1">Đăng nhập vào tài khoản của bạn</p>
+                    <p className="text-sm text-gray-500 mt-1">Log in to your account</p>
                 </div>
 
                 {/* Google Button */}
@@ -133,7 +133,7 @@ export default function Login() {
                         disabled={loading || googleLoading}
                         className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 rounded-xl transition-colors mt-1"
                     >
-                        {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+                        {loading ? 'Logging in...' : 'Log in'}
                     </button>
                 </form>
 
