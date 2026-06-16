@@ -35,9 +35,29 @@ def convert_to_wav(input_path: str) -> str:
     )
     return wav_path
 
+LANG_MAP = {
+    'en': "en",
+    'vi': "vi",
+    'fr': "fr",
+    'de': "de",
+    'es': "es",
+    'it': "it",
+    'pt': "pt",
+    'ru': "ru",
+    'ja': "ja",
+    'ko': "ko",
+    'zh': "zh",
+    'ar': "ar",
+}
+
 def detect_language(text: str) -> str:
-    pred = model_lang.predict(text)[0][0]
-    return pred.replace("__label__", "")
+    try:
+        if not text or len(text.strip()) < 5:
+            return "en"
+        pred = model_lang.predict(text)[0][0]
+        return pred.replace("__label__", "")
+    except:
+        return "en"
 
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
@@ -108,21 +128,32 @@ def translate():
 
     try:
         source_lang = detect_language(text)
-        tokenizer_M2M100.src_lang = source_lang
+
+        src = LANG_MAP.get(source_lang, "en")
+        tgt = LANG_MAP.get(target_lang, "en")
+
+        tokenizer_M2M100.src_lang = src
+
         encoded = tokenizer_M2M100(text, return_tensors="pt", truncation=True, max_length=512)
+
         generated_tokens = model_translate.generate(
             **encoded,
-            forced_bos_token_id=tokenizer_M2M100.get_lang_id(target_lang)
+            forced_bos_token_id=tokenizer_M2M100.get_lang_id(tgt)
         )
+
         translated_text = tokenizer_M2M100.batch_decode(
-            generated_tokens, skip_special_tokens=True
+            generated_tokens,
+            skip_special_tokens=True
         )[0]
+
         return jsonify({
             "source_lang": source_lang,
             "target_lang": target_lang,
             "translated_text": translated_text,
         })
+
     except Exception as e:
+        app.logger.error(f"Translate error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":

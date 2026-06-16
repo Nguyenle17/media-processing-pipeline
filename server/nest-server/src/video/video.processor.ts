@@ -1,5 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue, Job } from 'bullmq';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { FileService } from 'src/file/file.service';
@@ -8,44 +9,48 @@ import * as fs from 'fs';
 import * as path from 'path';
 import FormData from 'form-data';
 
-
 @Processor('video', { concurrency: 1 })
 export class VideoProcessor extends WorkerHost {
-
   constructor(
     private readonly jobService: JobService,
     private readonly httpService: HttpService,
     private readonly fileService: FileService,
+    @InjectQueue('video') private readonly videoQueue: Queue,
   ) {
     super();
   }
 
-  formatTime(sec: number) {
+
+  async process(job: Job) {
+    switch (job.name) {
+      case 'TranscriptVideo':
+        return this.handleTranscript(job.data);
+      case 'TranslateVideo':
+        return this.handleTranslate(job.data);
+      default:
+        throw new Error(`Unknown job type: ${job.name}`);
+    }
+  }
+
+  private formatTime(sec: number) {
     const m = Math.floor(sec / 60);
     const s = (sec % 60).toFixed(2).padStart(5, '0');
     return `${String(m).padStart(2, '0')}:${s}`;
   }
 
-  async process(job: Job) {
-    switch (job.name) {
-      case 'TranscriptVideo': return this.handleTranscript(job.data);
-      case 'TranslateVideo': return this.handleTranslate(job.data);
-      default: throw new Error(`Unknown job: ${job.name}`);
-    }
-  }
-
-  private buildFormData(filePath: string, filename: string, model: string | undefined, extra?: Record<string, string>) {
-    const formData = new FormData();
-    formData.append('file', fs.createReadStream(filePath), { filename });
-    if (model) {
-      formData.append('model', model);
-    }
+  private buildFormData(
+    filePath: string,
+    filename: string,
+    model?: string,
+    extra?: Record<string, string>,
+  ) {
+    const form = new FormData();
+    form.append('file', fs.createReadStream(filePath), { filename });
+    if (model) form.append('model', model);
     if (extra) {
-      Object.entries(extra).forEach(([key, value]) => {
-        formData.append(key, value);
-      });
+      for (const [k, v] of Object.entries(extra)) form.append(k, v);
     }
-    return formData;
+    return form;
   }
 
   private async postToAI(endpoint: string, formData: FormData) {
@@ -54,75 +59,106 @@ export class VideoProcessor extends WorkerHost {
         `${process.env.AI_URI}/${endpoint}`,
         formData,
         {
-          headers: { ...formData.getHeaders() },
+          headers: formData.getHeaders(),
           maxContentLength: Infinity,
           maxBodyLength: Infinity,
-          timeout: 300000,
+          timeout: 300_000,
         },
       ),
     );
   }
 
-  private async saveAndComplete(index: number, jobId: string, transcriptText: string, translateText: string, video: string, start: number, end: number) {
-    const updatedJob = await this.jobService.updateChunk(Number(index), jobId, transcriptText, translateText, start, end);
-    if (!updatedJob) return;
-    await this.fileService.deleteFile(video);
-    if (Number(updatedJob.processedChunks) >= Number(updatedJob.totalChunks)) {
-      await this.jobService.markAsCompleted(jobId);
-    }
-    return updatedJob;
-  }
 
-  async updateTranslateResult(jobId: string, translateText: string) {
-    const job = await this.jobService.getJobById(jobId);
-    if (!job) return;
-    const updatedJob = await this.jobService.updateChunk(0, jobId, job.transcriptText, translateText, 0, 0);
-    return updatedJob;
-  }
-
-  async handleTranscript(data: any) {
+  async handleTranscript(data: {
+    mode: string;
+    model: string;
+    index: number;
+    video: string;
+    jobId: string;
+    start: number;
+    end: number;
+  }) {
     const { mode, model, index, video, jobId, start, end } = data;
     const filePath = path.join(process.cwd(), 'uploads', video);
 
-    const formData = this.buildFormData(filePath, video, model);
-
     try {
-      const response = await this.postToAI('transcribe', formData);
-      const segments = response.data.segments.map((seg) => {
-        return `[${this.formatTime(seg.start)}-${this.formatTime(seg.end)}]:${seg.text}`
-      }).join('\n')
-      await this.saveAndComplete(index, jobId, mode === 'normal' ? response.data.text : segments, "", video, start, end);
+      const form = this.buildFormData(filePath, video, model);
+      const response = await this.postToAI('transcribe', form);
+
+      let transcriptText: string;
+      if (mode === 'segments') {
+        transcriptText = response.data.segments
+          .map(
+            (seg: any) =>
+              `[${this.formatTime(seg.start)}-${this.formatTime(seg.end)}]:${seg.text}`,
+          )
+          .join('\n');
+      } else {
+        transcriptText = response.data.text ?? '';
+      }
+
+      const updatedJob = await this.jobService.updateChunk(
+        index,
+        jobId,
+        transcriptText,
+        '',  
+        start,
+        end,
+      );
+
+      if (
+        updatedJob &&
+        Number(updatedJob.processedChunks) >= Number(updatedJob.totalChunks)
+      ) {
+        const finishedJob = await this.jobService.markTranscribeCompleted(jobId);
+
+        if (finishedJob && finishedJob.type === 'translate' && finishedJob.transcriptText) {
+          await this.videoQueue.add('TranslateVideo', {
+            jobId,
+            text: finishedJob.transcriptText,
+            target_lang: finishedJob.targetLang || 'en',
+          });
+        }
+      }
+
+      await this.fileService.deleteFile(video);
+
       return response.data;
     } catch (error) {
-      console.error(`Transcript chunk ${index} failed:`, error.message);
+      console.error(`[TranscriptVideo] chunk ${index} of job ${jobId} failed:`, error.message);
+      await this.jobService.markJobFailed(jobId, error.message);
       throw error;
     }
   }
 
-  async handleTranslate(data: any) {
-  const { jobId, text, target_lang } = data;
-  console.log(`Translating job ${jobId} to ${target_lang}, text length: ${text.length}`);
-  try {
-    const response = await firstValueFrom(
-      this.httpService.post(
-        `${process.env.AI_URI}/translate`,
-        {
-          text,
-          target_lang: target_lang || 'en',
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        },
-      ),
+  async handleTranslate(data: {
+    jobId: string;
+    text: string;
+    target_lang: string;
+  }) {
+    const { jobId, text, target_lang } = data;
+    console.log(
+      `[TranslateVideo] job=${jobId} lang=${target_lang} text_len=${text?.length}`,
     );
 
-    await this.updateTranslateResult(jobId, response.data.translated_text);
-    return response.data;
-  } catch (error) {
-    console.error(`Translation failed for job ${jobId}:`, error.message);
-    throw error;
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${process.env.AI_URI}/translate`,
+          { text, target_lang: target_lang || 'en' },
+          { headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+
+      const translatedText: string = response.data.translated_text ?? '';
+
+      await this.jobService.markTranslateCompleted(jobId, translatedText);
+
+      return response.data;
+    } catch (error) {
+      console.error(`[TranslateVideo] job=${jobId} failed:`, error.message);
+      await this.jobService.markJobFailed(jobId, error.message);
+      throw error;
+    }
   }
-}
 }

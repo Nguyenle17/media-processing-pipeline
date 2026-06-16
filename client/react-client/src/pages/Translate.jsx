@@ -10,28 +10,32 @@ import { AuthContext } from "../context/AuthContext";
 
 const LANGUAGES = [
     { code: 'vi', label: 'Vietnamese', flag: '🇻🇳' },
-    { code: 'en', label: 'English', flag: '🇺🇸' },
-    { code: 'zh', label: 'Chinese', flag: '🇨🇳' },
-    { code: 'ko', label: 'Korean', flag: '🇰🇷' },
-    { code: 'ja', label: 'Japanese', flag: '🇯🇵' },
-    { code: 'fr', label: 'French', flag: '🇫🇷' },
-    { code: 'de', label: 'German', flag: '🇩🇪' },
-    { code: 'es', label: 'Spanish', flag: '🇪🇸' },
+    { code: 'en', label: 'English',    flag: '🇺🇸' },
+    { code: 'zh', label: 'Chinese',    flag: '🇨🇳' },
+    { code: 'ko', label: 'Korean',     flag: '🇰🇷' },
+    { code: 'ja', label: 'Japanese',   flag: '🇯🇵' },
+    { code: 'fr', label: 'French',     flag: '🇫🇷' },
+    { code: 'de', label: 'German',     flag: '🇩🇪' },
+    { code: 'es', label: 'Spanish',    flag: '🇪🇸' },
 ];
 
+const POLL_INTERVAL = 5000;
+const IDLE_TIMEOUT  = 10 * 60 * 1000;
+
 export default function Translate() {
-    const [status, setStatus] = useState('');
+    const [status, setStatus]         = useState('');
     const [percentage, setPercentage] = useState(0);
-    const [videoURL, setVideoURL] = useState(null);
-    const [videoFile, setVideoFile] = useState(null);
-    const [duration, setDuration] = useState(0);
-    const [range, setRange] = useState([0, 0]);
-    const [text, setText] = useState('');
-    const [format, setFormat] = useState('txt');
-    const [filename, setFilename] = useState(`translate_${Date.now()}`);
+    const [videoURL, setVideoURL]     = useState(null);
+    const [videoFile, setVideoFile]   = useState(null);
+    const [duration, setDuration]     = useState(0);
+    const [range, setRange]           = useState([0, 0]);
+    const [text, setText]             = useState('');
+    const [format, setFormat]         = useState('txt');
+    const [filename, setFilename]     = useState(`translate_${Date.now()}`);
     const [targetLang, setTargetLang] = useState('vi');
-    const [loading, setLoading] = useState(false);
-    const [phase, setPhase] = useState('idle');
+    const [loading, setLoading]       = useState(false);
+    const [phase, setPhase]           = useState('idle');
+
     const videoRef = useRef(null);
     const { user } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -39,8 +43,15 @@ export default function Translate() {
     const handleVideoChange = (e) => {
         const file = e.target.files[0];
         if (!user) { alert("Please log in."); navigate('/login'); return; }
-        if (file) { setVideoURL(URL.createObjectURL(file)); setVideoFile(file); setPhase('idle'); setText(''); }
-        else { setVideoURL(null); setVideoFile(null); }
+        if (file) {
+            setVideoURL(URL.createObjectURL(file));
+            setVideoFile(file);
+            setPhase('idle');
+            setText('');
+        } else {
+            setVideoURL(null);
+            setVideoFile(null);
+        }
     };
 
     const handleVideoLoaded = (e) => {
@@ -54,89 +65,112 @@ export default function Translate() {
         if (videoRef.current) videoRef.current.currentTime = values[0];
     };
 
-    const formatTime = (s) => {
-        const m = Math.floor(s / 60);
-        const sec = Math.floor(s % 60);
-        return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-    };
-
     const handleSubmit = async () => {
+        if (!user)      { alert("Please log in."); navigate('/login'); return; }
+        if (!videoFile) { alert("No video selected."); return; }
+
         try {
-            setLoading(true); setPhase('uploading'); setStatus(''); setPercentage(0);
-            if (!user) { alert("Please log in."); navigate('/login'); return; }
-            if (!videoFile) { alert("No video selected."); return; }
+            setLoading(true);
+            setPhase('uploading');
+            setStatus('');
+            setPercentage(0);
 
             const jobResponse = await Api.post('/job/create', {
-                title: videoFile.name,
-                totalChunks: 1,
-                type: 'translate',
+                title:      videoFile.name,
+                type:       'translate',
+                duration:   range[1] - range[0],
+                targetLang: targetLang,
             });
             const jobId = jobResponse._id;
-            if (!jobId) throw new Error('No jobId returned from server');
+            if (!jobId) throw new Error('No jobId returned');
 
             const formData = new FormData();
             formData.append('start', range[0]);
-            formData.append('end', range[1]);
-            formData.append('target_lang', targetLang);
+            formData.append('end',   range[1]);
             formData.append('video', videoFile, videoFile.name);
             formData.append('jobId', jobId);
-            formData.append('type', 'translate');
 
             await uploadWithProgress(formData, (pct) => {
                 setPercentage(pct);
                 setStatus(`Uploading... ${pct}%`);
             });
 
-            setPhase('transcribing'); setPercentage(0); setStatus('Translating...');
-            const resultText = await pollJobResult(jobId);
-            setText(resultText); setStatus('Completed!'); setPhase('done'); setPercentage(100);
+            setPhase('processing');
+            setPercentage(0);
+            setStatus('Transcribing...');
+
+            const translatedText = await pollJobComplete(jobId);
+            setText(translatedText);
+            setPhase('done');
+            setPercentage(100);
+            setStatus('Done!');
+
         } catch (error) {
-            setStatus('Error: ' + error.message); setPhase('idle');
+            setStatus('Error: ' + error.message);
+            setPhase('idle');
         } finally {
             setLoading(false);
         }
     };
 
-    const uploadWithProgress = (formData, onProgress) => new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/video/translate`);
-        xhr.setRequestHeader('Authorization', `Bearer ${Api.token}`);
-        xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
-        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve(JSON.parse(xhr.responseText)) : reject(new Error(`Upload failed: ${xhr.status}`));
-        xhr.onerror = () => reject(new Error('Network error'));
-        xhr.send(formData);
-    });
+    const uploadWithProgress = (formData, onProgress) =>
+        new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/video/transcribe`);
+            xhr.setRequestHeader('Authorization', `Bearer ${Api.token}`);
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+            };
+            xhr.onload = () =>
+                xhr.status >= 200 && xhr.status < 300
+                    ? resolve(JSON.parse(xhr.responseText))
+                    : reject(new Error(`Upload failed: ${xhr.status}`));
+            xhr.onerror = () => reject(new Error('Network error'));
+            xhr.send(formData);
+        });
 
-    const pollJobResult = async (jobId) => {
-        const interval = 5000;
+    const pollJobComplete = async (jobId) => {
         let lastActivity = Date.now();
-        const idleTimeout = 10 * 60 * 1000;
 
         for (;;) {
-            await new Promise(r => setTimeout(r, interval));
+            await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+
             const job = await Api.get(`/job/process/${jobId}`);
 
-            if (job.status === 'processing') {
-                lastActivity = new Date(job.updatedAt).getTime();
-                if (job.countChunks && job.totalChunks) {
-                    setPercentage(Math.round((job.countChunks / job.totalChunks) * 100));
-                    setStatus(`Translating... ${job.countChunks}/${job.totalChunks} chunks`);
+            switch (job.status) {
+                case 'waiting':
+                    setStatus('Waiting in queue...');
+                    setPercentage(0);
+                    lastActivity = Date.now();
+                    break;
+
+                case 'processing':
+                    lastActivity = new Date(job.updatedAt).getTime();
+                    if (job.processedChunks && job.totalChunks) {
+                        const pct = Math.round((job.processedChunks / job.totalChunks) * 100);
+                        setPercentage(Math.round(pct * 0.8));
+                        setStatus(`Transcribing... ${job.processedChunks}/${job.totalChunks} chunks`);
+                    }
+                    break;
+
+                case 'translating':
+                    lastActivity = Date.now();
+                    setPercentage(85);
+                    setStatus(`Translating to ${selectedLang?.label || targetLang}...`);
+                    break;
+
+                case 'completed': {
+                    const result = await Api.get(`/job/result/${jobId}`);
+                    return result.translatedText || result.transcriptText || '';
                 }
+
+                case 'failed':
+                    throw new Error('Job failed on server');
             }
 
-            if (job.status === 'waiting') {
-                setStatus(`Waiting in queue... (position: ${job.queuePosition || '?'})`);
-                setPercentage(0);
-                lastActivity = Date.now();
+            if (Date.now() - lastActivity > IDLE_TIMEOUT) {
+                throw new Error('Job timed out — no activity for 10 minutes');
             }
-
-            if (job.status === 'completed') {
-                const r = await Api.get(`/job/${jobId}`);
-                return r.resultText;
-            }
-
-            if (job.status === 'failed') throw new Error('Translation failed');
-            if (Date.now() - lastActivity > idleTimeout) throw new Error('Job timed out');
         }
     };
 
@@ -144,14 +178,14 @@ export default function Translate() {
 
     const downloadTxt = () => {
         const blob = new Blob([text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
         a.href = url; a.download = `${filename}.txt`; a.click();
         URL.revokeObjectURL(url);
     };
 
     const downloadPdf = () => {
-        const doc = new jsPDF();
+        const doc   = new jsPDF();
         const lines = doc.splitTextToSize(text, 180);
         doc.setFontSize(12);
         doc.text(lines, 15, 15);
@@ -166,19 +200,25 @@ export default function Translate() {
     };
 
     const handleDownload = async () => {
-        if (format === 'txt') downloadTxt();
-        if (format === 'pdf') downloadPdf();
+        if (format === 'txt')  downloadTxt();
+        if (format === 'pdf')  downloadPdf();
         if (format === 'docx') await downloadDocx();
     };
 
-    const phaseLabel = { idle: '', uploading: 'Uploading', transcribing: 'Translating', done: 'Done' }[phase];
-    const phaseColor = { idle: '#6366f1', uploading: '#f59e0b', transcribing: '#8b5cf6', done: '#10b981' }[phase];
+    const formatTime = (s) => {
+        const m   = Math.floor(s / 60);
+        const sec = Math.floor(s % 60);
+        return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    };
+
+    const phaseLabel = { idle: '', uploading: 'Uploading', processing: 'Processing', done: 'Done' }[phase] ?? phase;
+    const phaseColor = { idle: '#6366f1', uploading: '#f59e0b', processing: '#8b5cf6', done: '#10b981' }[phase] ?? '#6366f1';
     const selectedLang = LANGUAGES.find(l => l.code === targetLang);
 
     return (
-        <section style={{ fontFamily: "'Syne', sans-serif", background: '#0a0a0f', minHeight: '100vh', color: '#fff' }}>
+        <section style={{ fontFamily: "'Inter', sans-serif", background: '#0a0a0f', minHeight: '100vh', color: '#fff' }}>
             <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
                 #range-slider { height: 40px; background: #333; overflow: hidden; margin-top: 12px; }
                 #range-slider .range-slider__thumb { width: 18px; height: 38px; border-radius: 4px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='%23333' viewBox='0 0 24 24'%3E%3Cpath d='M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z' /%3E%3C/svg%3E") no-repeat center; }
                 #range-slider .range-slider__range { border-radius: 6px; background: transparent; border: 4px solid #fff; box-sizing: border-box; box-shadow: 0 0 0 9999px rgba(0,0,0,.75); }
@@ -208,7 +248,7 @@ export default function Translate() {
                 .loading-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px; gap: 20px; }
                 .progress-ring-wrap { position: relative; width: 80px; height: 80px; }
                 .progress-ring { transform: rotate(-90deg); }
-                .progress-ring-bg { fill: none; stroke: rgba(99,102,241,0.15); stroke-width: 4; }
+                .progress-ring-bg   { fill: none; stroke: rgba(99,102,241,0.15); stroke-width: 4; }
                 .progress-ring-fill { fill: none; stroke: #6366f1; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease; }
                 .progress-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #fff; }
                 .loading-status { font-size: 13px; color: #71717a; font-family: 'JetBrains Mono', monospace; }
@@ -220,7 +260,6 @@ export default function Translate() {
             `}</style>
 
             <div style={{ maxWidth: 1200, margin: '0 auto', padding: '60px 32px' }}>
-                {/* Header */}
                 <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#6366f1', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>
                     // translation studio
                 </p>
@@ -251,7 +290,7 @@ export default function Translate() {
                 </div>
 
                 <div className="studio-grid">
-                    {/* Left */}
+                    {/* Left: Video + Upload */}
                     <div className="panel">
                         <div className="panel-header">
                             <div className="panel-dot" style={{ background: '#f59e0b' }} />
@@ -283,7 +322,7 @@ export default function Translate() {
                         </div>
                     </div>
 
-                    {/* Right */}
+                    {/* Right: Result */}
                     <div className="panel" style={{ position: 'relative' }}>
                         <div className="panel-header" style={{ justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -317,23 +356,18 @@ export default function Translate() {
                             ) : text ? (
                                 <>
                                     <div className="result-text">{text}</div>
-
-                                    {/* Actions */}
                                     <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-                                        <button className="icon-btn"
-                                            onClick={handleCopy}
+                                        <button className="icon-btn" onClick={handleCopy}
                                             style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}
                                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.25)'}
                                             onMouseLeave={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
-                                        >📋 Copy</button>
+                                        >⮺ Copy</button>
                                     </div>
 
-                                    {/* Export */}
                                     <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                             <label style={{ fontSize: 11, color: '#71717a', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.1em' }}>File name</label>
-                                            <input type="text" defaultValue={filename}
-                                                onChange={e => setFilename(e.target.value)}
+                                            <input type="text" defaultValue={filename} onChange={e => setFilename(e.target.value)}
                                                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', color: '#fff', fontSize: 13, fontFamily: "'JetBrains Mono', monospace", outline: 'none', width: '100%' }}
                                                 onFocus={e => e.target.style.borderColor = 'rgba(99,102,241,0.5)'}
                                                 onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}

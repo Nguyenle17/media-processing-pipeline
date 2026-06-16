@@ -15,7 +15,7 @@ export class AdminService {
 
         @InjectModel(Job.name)
         private jobModel: Model<Job>,
-    ) {}
+    ) { }
 
     private getDateFilter(range: string) {
         const map = {
@@ -71,7 +71,7 @@ export class AdminService {
                 {
                     $match: {
                         status: 'completed',
-                        ...dateFilter, // fix: apply range here too
+                        ...dateFilter,
                     },
                 },
                 {
@@ -96,8 +96,13 @@ export class AdminService {
         };
     }
 
-    async getAllUsers() {
-        return this.usersService.findAll();
+    async getAllUsers(page: number = 1, limit: number = 10) {
+        const skip = (page - 1) * limit;
+        const [users, total] = await Promise.all([
+            this.userModel.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+            this.userModel.countDocuments(),
+        ]);
+        return { users, total, page, limit, totalPages: Math.ceil(total / limit) };
     }
 
     async deleteUser(id: string, currentUserId: string) {
@@ -143,5 +148,14 @@ export class AdminService {
         if (!user) throw new Error('User not found');
 
         return this.usersService.updateStatus(id, true);
+    }
+
+    async searchUsers(query: string) {
+        return this.userModel.find({
+            $or: [
+                { name: { $regex: query, $options: 'i' } },
+                { email: { $regex: query, $options: 'i' } },
+            ],
+        });
     }
 }

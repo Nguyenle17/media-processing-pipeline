@@ -12,7 +12,7 @@ export class AuthService {
     async login(LoginUserDto: LoginUserDto, res: any) {
         try {
             const user = await this.usersService.findByEmail(LoginUserDto.email);
-
+            
             if (!user) {
                 throw new NotFoundException('User not found');
             }

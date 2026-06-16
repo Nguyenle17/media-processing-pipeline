@@ -14,21 +14,21 @@ export class Chunk {
   })
   status: string;
 
-  @Prop()
+  @Prop({ default: '' })
   transcript: string;
 
-  @Prop()
+  @Prop({ default: '' })
   translation: string;
 
-  @Prop()
+  @Prop({ default: 0 })
   startTime: number;
 
-  @Prop()
+  @Prop({ default: 0 })
   endTime: number;
 
   @Prop()
-  error: string; 
+  error: string;
 }
-export const ChunkSchema = SchemaFactory.createForClass(Chunk);
 
+export const ChunkSchema = SchemaFactory.createForClass(Chunk);
 ChunkSchema.index({ jobId: 1, index: 1 }, { unique: true });

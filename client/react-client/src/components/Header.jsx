@@ -29,32 +29,34 @@ export default function Header() {
     }, []);
 
     let navLinks = null;
+    let menuItems = null;
 
     if (user && user.role === 'admin') {
         navLinks = [
             { to: '/Dashboard', label: 'Dashboard' },
-            { to: '/All-users', label: 'All Users' },
-            { to: '/Unban-Users', label: 'Unban Users' },
-            { to: '/Update-role', label: 'Update Role' },
+            { to: '/Users-management', label: 'User Management' },
+            { to: '/Admin-role-update', label: 'Update Role' },
         ];
+
+        menuItems = [];
     }
     else {
         navLinks = [
             { to: '/', label: 'Home' },
             { to: '/translate', label: 'Translate' },
-            { to: '/summary', label: 'Summary' },
             { to: '/extract-audio', label: 'Extract Audio' },
             { to: '/features', label: 'Features' },
         ];
+
+        menuItems = [
+            { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+            { to: '/history', icon: History, label: 'History' },
+            { to: '/projects', icon: FolderKanban, label: 'My Videos' },
+            { to: '/translate', icon: Languages, label: 'Translate' },
+            { to: '/settings', icon: Settings, label: 'Settings' },
+        ];
     }
 
-    const menuItems = [
-        { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/history', icon: History, label: 'History' },
-        { to: '/projects', icon: FolderKanban, label: 'My Videos' },
-        { to: '/translate', icon: Languages, label: 'Translate' },
-        { to: '/settings', icon: Settings, label: 'Settings' },
-    ];
 
     const isActive = (path) => location.pathname === path;
 

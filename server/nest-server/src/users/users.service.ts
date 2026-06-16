@@ -56,10 +56,10 @@ export class UsersService {
         return this.userModel.findByIdAndUpdate(id, { role }, { new: true });
     }
 
-    async updateStatus(id: string, isActive: boolean) {
+    async updateStatus(id: string, isActivate: boolean) {
         return this.userModel.findByIdAndUpdate(
             id,
-            { isActive },
+            { isActivate: isActivate },
             { new: true }
         );
     }

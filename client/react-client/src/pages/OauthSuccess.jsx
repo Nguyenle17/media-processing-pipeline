@@ -1,8 +1,10 @@
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
+import { useEffect, useContext } from "react";
 
 export default function OAuth2Success() {
   const navigate = useNavigate();
+  const { login } = useContext(AuthContext);
 
   useEffect(() => {
     async function fetchToken() {
@@ -15,7 +17,7 @@ export default function OAuth2Success() {
         const data = await res.json();
 
         if (data.accessToken) {
-          localStorage.setItem('token', data.accessToken);
+          login(data.accessToken);
         }
 
         navigate('/');

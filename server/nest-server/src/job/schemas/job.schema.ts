@@ -2,14 +2,14 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
 @Schema({ timestamps: true })
 export class Job {
-  @Prop()
+  @Prop({ required: true })
   userId: string;
 
-  @Prop()
+  @Prop({ default: 'Untitled Job' })
   title: string;
 
-  @Prop({ default: 'transcript' })
-  type: 'transcript' | 'translate' | 'summary';
+  @Prop({ default: 'transcript', enum: ['transcript', 'translate'] })
+  type: string;
 
   @Prop({ default: 0 })
   totalChunks: number;
@@ -19,7 +19,7 @@ export class Job {
 
   @Prop({
     default: 'waiting',
-    enum: ['waiting', 'processing', 'completed', 'failed'],
+    enum: ['waiting', 'processing', 'translating', 'completed', 'failed'],
   })
   status: string;
 
@@ -29,11 +29,11 @@ export class Job {
   @Prop()
   translatedText: string;
 
-  @Prop()
-  duration: number; 
+  @Prop({ default: 0 })
+  duration: number;
 
   @Prop()
-  processingTime: number; 
+  targetLang: string;
 
   @Prop()
   error: string;
