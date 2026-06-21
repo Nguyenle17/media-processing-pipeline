@@ -1,31 +1,62 @@
-from flask import Flask, request, jsonify
-import tempfile, os, threading, subprocess
+import os
+import tempfile
+import subprocess
+import threading
+import asyncio
+import torch
 import whisper
 import fasttext
+import edge_tts
+from flask import Flask, request, jsonify, send_file, after_this_request
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, M2M100ForConditionalGeneration
 
+torch.set_num_threads(2) 
+
 DEVICE = "cpu"
+app = Flask(__name__)
 
-app  = Flask(__name__)
-lock = threading.Lock()
+whisper_lock = threading.Lock()
+grammar_lock = threading.Lock()
+translate_lock = threading.Lock()
 
-print("Loading Whisper model...")
-model_whisper_tiny = whisper.load_model("tiny")
-model_whisper_small = whisper.load_model("small")
-model_whisper_base  = whisper.load_model("base")
+print("Loading Whisper models...")
+MODELS_WHISPER = {
+    "tiny": whisper.load_model("tiny", device=DEVICE),
+    "base": whisper.load_model("base", device=DEVICE),
+    "small": whisper.load_model("small", device=DEVICE)
+}
 
 print("Loading grammar model...")
-tokenizer_grammar = AutoTokenizer.from_pretrained("vennify/t5-base-grammar-correction")
-model_grammar     = AutoModelForSeq2SeqLM.from_pretrained("vennify/t5-base-grammar-correction")
+GRAMMAR_REPO = "vennify/t5-base-grammar-correction"
+tokenizer_grammar = AutoTokenizer.from_pretrained(GRAMMAR_REPO)
+model_grammar = AutoModelForSeq2SeqLM.from_pretrained(GRAMMAR_REPO).to(DEVICE)
 
 print("Loading translation model...")
-tokenizer_M2M100 = AutoTokenizer.from_pretrained("facebook/m2m100_418M")
-model_translate  = M2M100ForConditionalGeneration.from_pretrained("facebook/m2m100_418M")
+TRANSLATE_REPO = "facebook/m2m100_418M"
+tokenizer_M2M100 = AutoTokenizer.from_pretrained(TRANSLATE_REPO)
+model_translate = M2M100ForConditionalGeneration.from_pretrained(TRANSLATE_REPO).to(DEVICE)
 
 print("Loading language detection model...")
 model_lang = fasttext.load_model("lid.176.bin")
 
-print("Models ready.")
+VOICE_MAP = {
+    "vi": "vi-VN-NamMinhNeural",     
+    "en": "en-US-BrianNeural",        
+    "fr": "fr-FR-HenriNeural",    
+    "de": "de-DE-KillianNeural",     
+    "es": "es-ES-AlvaroNeural",      
+    "it": "it-IT-DiegoNeural",       
+    "pt": "pt-BR-AntonioNeural",      
+    "ru": "ru-RU-DmitryNeural",     
+    "ja": "ja-JP-NanamiNeural", 
+    "ko": "ko-KR-HyunsuNeural",     
+    "zh": "zh-CN-XiaoxiaoNeural",    
+    "ar": "ar-SA-HamedNeural",      
+}
+
+async def generate_speech(text: str, voice: str, output_file: str):
+    communicate = edge_tts.Communicate(text=text, voice=voice)
+    await communicate.save(output_file)
 
 def convert_to_wav(input_path: str) -> str:
     wav_path = input_path + ".wav"
@@ -35,28 +66,13 @@ def convert_to_wav(input_path: str) -> str:
     )
     return wav_path
 
-LANG_MAP = {
-    'en': "en",
-    'vi': "vi",
-    'fr': "fr",
-    'de': "de",
-    'es': "es",
-    'it': "it",
-    'pt': "pt",
-    'ru': "ru",
-    'ja': "ja",
-    'ko': "ko",
-    'zh': "zh",
-    'ar': "ar",
-}
-
 def detect_language(text: str) -> str:
     try:
         if not text or len(text.strip()) < 5:
             return "en"
-        pred = model_lang.predict(text)[0][0]
+        pred = model_lang.predict(text.replace("\n", " "))[0][0]
         return pred.replace("__label__", "")
-    except:
+    except Exception:
         return "en"
 
 @app.route("/transcribe", methods=["POST"])
@@ -64,13 +80,8 @@ def transcribe():
     if "file" not in request.files:
         return jsonify({"error": "No file field in request"}), 400
     
-    type = request.form.get("type", "tiny").lower()
-    if type == "tiny":
-        model = model_whisper_tiny
-    elif type == "small":
-        model = model_whisper_small
-    elif type == "base":
-        model = model_whisper_base
+    model_type = request.form.get("type", "tiny").lower()
+    model = MODELS_WHISPER.get(model_type, MODELS_WHISPER["tiny"])
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
         request.files["file"].save(tmp.name)
@@ -79,18 +90,19 @@ def transcribe():
     wav_path = None
     try:
         wav_path = convert_to_wav(raw_path)
-        with lock:
+        with whisper_lock:  
             result = model.transcribe(wav_path)
-            segments = [
-                {
-                    "start": round(seg["start"], 2),
-                    "end":   round(seg["end"], 2),
-                    "text":  seg["text"].strip()
-                }
-                for seg in result["segments"]
-            ]
+            
+        segments = [
+            {
+                "start": round(seg["start"], 2),
+                "end":   round(seg["end"], 2),
+                "text":  seg["text"].strip()
+            }
+            for seg in result.get("segments", [])
+        ]
         return jsonify({
-            "text": result["text"],
+            "text": result.get("text", ""),
             "segments": segments,
             "language": result.get("language", "unknown"),
         })
@@ -98,9 +110,8 @@ def transcribe():
         app.logger.error(f"Transcribe error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
     finally:
-        os.unlink(raw_path)
-        if wav_path and os.path.exists(wav_path):
-            os.unlink(wav_path)
+        if os.path.exists(raw_path): os.unlink(raw_path)
+        if wav_path and os.path.exists(wav_path): os.unlink(wav_path)
 
 @app.route("/grammar", methods=["POST"])
 def grammar():
@@ -108,8 +119,9 @@ def grammar():
     if not text:
         return jsonify({"error": "No text provided"}), 400
     try:
-        inputs  = tokenizer_grammar(text, return_tensors="pt", truncation=True, max_length=512)
-        outputs = model_grammar.generate(**inputs, max_length=512)
+        inputs = tokenizer_grammar(text, return_tensors="pt", truncation=True, max_length=512).to(DEVICE)
+        with grammar_lock:
+            outputs = model_grammar.generate(**inputs, max_length=512)
         return jsonify({
             "corrected_text": tokenizer_grammar.decode(outputs[0], skip_special_tokens=True)
         })
@@ -119,7 +131,6 @@ def grammar():
 @app.route("/translate", methods=["POST"])
 def translate():
     data = request.get_json(silent=True) or {}
-
     text = data.get("text", "").strip()
     target_lang = data.get("target_lang", "en")
 
@@ -128,34 +139,60 @@ def translate():
 
     try:
         source_lang = detect_language(text)
+        tokenizer_M2M100.src_lang = source_lang
 
-        src = LANG_MAP.get(source_lang, "en")
-        tgt = LANG_MAP.get(target_lang, "en")
+        inputs = tokenizer_M2M100(text, return_tensors="pt", truncation=True, max_length=512).to(DEVICE)
+        forced_bos_token_id = tokenizer_M2M100.get_lang_id(target_lang)
 
-        tokenizer_M2M100.src_lang = src
+        with translate_lock:
+            generated_tokens = model_translate.generate(
+                **inputs,
+                forced_bos_token_id=forced_bos_token_id
+            )
 
-        encoded = tokenizer_M2M100(text, return_tensors="pt", truncation=True, max_length=512)
-
-        generated_tokens = model_translate.generate(
-            **encoded,
-            forced_bos_token_id=tokenizer_M2M100.get_lang_id(tgt)
-        )
-
-        translated_text = tokenizer_M2M100.batch_decode(
-            generated_tokens,
-            skip_special_tokens=True
-        )[0]
-
+        translated_text = tokenizer_M2M100.batch_decode(generated_tokens, skip_special_tokens=True)[0]
         return jsonify({
             "source_lang": source_lang,
             "target_lang": target_lang,
             "translated_text": translated_text,
         })
-
     except Exception as e:
         app.logger.error(f"Translate error: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+@app.route("/text-to-speech", methods=["POST"])
+def text_speech():
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "").strip()
+    lang = data.get("lang", "en").strip()
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    output_file = None
+    try:
+        voice = VOICE_MAP.get(lang, "en-US-JennyNeural")
+
+        fd, output_file = tempfile.mkstemp(suffix=".mp3")
+        os.close(fd) 
+
+        asyncio.run(generate_speech(text, voice, output_file))
+
+        @after_this_request
+        def cleanup(response):
+            try:
+                if output_file and os.path.exists(output_file):
+                    os.unlink(output_file)
+            except Exception as e:
+                app.logger.error(f"Error cleaning up TTS file: {e}")
+            return response
+
+        return send_file(output_file, mimetype="audio/mpeg", as_attachment=False)
+
+    except Exception as e:
+        if output_file and os.path.exists(output_file):
+            os.unlink(output_file)
+        app.logger.error(f"TTS error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
-    print("\nRunning on http://localhost:5000\n")
     app.run(host="0.0.0.0", port=5000, threaded=True)

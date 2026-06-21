@@ -15,12 +15,13 @@ export class VideoService {
     @InjectQueue('video') private videoQueue: Queue,
   ) {}
 
-
   async transcribeVideo(file: Express.Multer.File, data: any) {
     const { jobId, mode = 'normal', model = 'tiny' } = data;
     const start = parseFloat(data.start) || 0;
+
     const inputPath = await this.fileService.saveFile(file);
     const fullPath = path.join(process.cwd(), 'uploads', inputPath);
+
     const videoDuration = await this.getVideoDuration(fullPath);
     const end = parseFloat(data.end) || videoDuration;
 
@@ -31,7 +32,6 @@ export class VideoService {
 
     const chunkDuration = 60 * 5;
     const totalChunks = Math.ceil((end - start) / chunkDuration);
-
     await this.jobService.updateTotalChunks(jobId, totalChunks);
 
     for (let i = 0; i < totalChunks; i++) {
@@ -41,22 +41,16 @@ export class VideoService {
       const chunkPath = path.join(process.cwd(), 'uploads', chunkName);
 
       await this.splitVideo(fullPath, chunkPath, chunkStart, chunkDuration);
-
       await this.videoQueue.add('TranscriptVideo', {
-        mode,
-        model,
-        index: i,
-        video: chunkName,
-        jobId,
-        start: chunkStart,
-        end: chunkEnd,
+        mode, model, index: i, video: chunkName,
+        jobId, start: chunkStart, end: chunkEnd,
       });
     }
 
     fs.unlinkSync(fullPath);
-
     return { message: 'Video split and queued', totalChunks };
   }
+
 
   async translateVideo(data: { jobId: string; target_lang: string }) {
     const job = await this.jobService.getJobById(data.jobId);
@@ -68,9 +62,9 @@ export class VideoService {
       text: job.transcriptText,
       target_lang: data.target_lang || 'en',
     });
-
     return { message: 'Translation queued' };
   }
+
 
   async checkGrammar(data: { text: string }) {
     const response = await fetch(`${process.env.AI_URI}/grammar`, {
@@ -78,12 +72,35 @@ export class VideoService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: data.text }),
     });
-
     const json = await response.json();
     if (json.error) throw new Error(json.error.message);
-
     return { correctedText: json.corrected_text };
   }
+
+  async textToSpeech(data: { text: string; lang: string }): Promise<{ audioBuffer: Buffer; filename: string }> {
+    const { text, lang } = data;
+
+    if (!text?.trim()) throw new BadRequestException('text không được để trống');
+    if (!lang?.trim()) throw new BadRequestException('lang không được để trống');
+
+    const response = await fetch(`${process.env.AI_URI}/text-to-speech`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.trim(), lang: lang.trim() }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`TTS service error: ${err}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = Buffer.from(arrayBuffer);
+    const filename = `tts_${lang}_${Date.now()}.mp3`;
+
+    return { audioBuffer, filename };
+  }
+
 
   getVideoDuration(filePath: string): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -94,12 +111,7 @@ export class VideoService {
     });
   }
 
-  splitVideo(
-    input: string,
-    output: string,
-    start: number,
-    duration: number,
-  ): Promise<void> {
+  splitVideo(input: string, output: string, start: number, duration: number): Promise<void> {
     return new Promise((resolve, reject) => {
       ffmpeg(input)
         .setStartTime(start)
