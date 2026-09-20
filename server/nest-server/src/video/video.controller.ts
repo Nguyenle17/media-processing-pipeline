@@ -41,7 +41,8 @@ export class VideoController {
     @Body() body: { text: string; lang: string },
     @Res() res: Response,
   ) {
-    const { audioBuffer, filename } = await this.videoService.textToSpeech(body);
+    const { audioBuffer, filename } =
+      await this.videoService.textToSpeech(body);
     res.set({
       'Content-Type': 'audio/mpeg',
       'Content-Disposition': `attachment; filename="${filename}"`,

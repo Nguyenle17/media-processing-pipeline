@@ -30,12 +30,12 @@ export default function AppRoutes() {
             <Dashboard />
           </ProtectedRoute>
         } />
-        <Route path="/Users-management" element={
+        <Route path="/users-management" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <UserManagement />
           </ProtectedRoute>
         } />
-        <Route path="/Admin-role-update" element={
+        <Route path="/admin-role-update" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminRoleUpdate />
           </ProtectedRoute>

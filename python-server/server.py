@@ -21,9 +21,10 @@ translate_lock = threading.Lock()
 
 print("Loading Whisper models...")
 MODELS_WHISPER = {
-    "tiny": whisper.load_model("tiny", device=DEVICE),
     "base": whisper.load_model("base", device=DEVICE),
-    "small": whisper.load_model("small", device=DEVICE)
+    "small": whisper.load_model("small", device=DEVICE),
+    "medium": whisper.load_model("medium", device=DEVICE),
+    "large": whisper.load_model("large", device=DEVICE),
 }
 
 print("Loading grammar model...")
@@ -80,8 +81,8 @@ def transcribe():
     if "file" not in request.files:
         return jsonify({"error": "No file field in request"}), 400
     
-    model_type = request.form.get("type", "tiny").lower()
-    model = MODELS_WHISPER.get(model_type, MODELS_WHISPER["tiny"])
+    model_type = request.form.get("type", "small").lower()
+    model = MODELS_WHISPER.get(model_type, MODELS_WHISPER["small"])
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
         request.files["file"].save(tmp.name)

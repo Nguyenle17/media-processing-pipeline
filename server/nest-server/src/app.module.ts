@@ -28,11 +28,17 @@ dotenv.config();
 
     MongooseModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>('MONGODB_URI'),
-      })
-    }), AuthModule, VideoModule, FileModule, JobModule, RedisModule, AdminModule
+      }),
+    }),
+    AuthModule,
+    VideoModule,
+    FileModule,
+    JobModule,
+    RedisModule,
+    AdminModule,
   ],
   providers: [RedisService],
 })
-export class AppModule { }
+export class AppModule {}

@@ -5,7 +5,7 @@ import { JobModule } from 'src/job/job.module';
 import { FileModule } from 'src/file/file.module';
 import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bullmq';
-import { VideoProcessor  } from './video.processor'
+import { VideoProcessor } from './video.processor';
 import { JwtStrategy } from '../auth/jwt.strategy';
 
 @Module({
@@ -19,9 +19,8 @@ import { JwtStrategy } from '../auth/jwt.strategy';
         attempts: 3,
       },
     }),
-
   ],
   providers: [VideoService, VideoProcessor, JwtStrategy],
-  controllers: [VideoController]
+  controllers: [VideoController],
 })
-export class VideoModule { }
+export class VideoModule {}

@@ -1,16 +1,28 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue, Job } from 'bullmq';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { HttpService } from '@nestjs/axios';
+import { Logger } from '@nestjs/common';
+import { Job, Queue } from 'bullmq';
 import { firstValueFrom } from 'rxjs';
-import { FileService } from 'src/file/file.service';
-import { JobService } from '../job/job.service';
+import FormData from 'form-data'; // cần "esModuleInterop": true trong tsconfig
 import * as fs from 'fs';
 import * as path from 'path';
-import FormData from 'form-data';
+import { FileService } from '../file/file.service';
+import { JobService } from '../job/job.service';
+import type {
+  TranscribeResponse,
+  TranscriptJobData,
+  TranslateJobData,
+  TranslateResponse,
+  VideoJob,
+} from './type/VideoType';
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 @Processor('video', { concurrency: 1 })
 export class VideoProcessor extends WorkerHost {
+  private readonly logger = new Logger(VideoProcessor.name);
+
   constructor(
     private readonly jobService: JobService,
     private readonly httpService: HttpService,
@@ -20,32 +32,42 @@ export class VideoProcessor extends WorkerHost {
     super();
   }
 
-
-  async process(job: Job) {
+  async process(
+    job: VideoJob,
+  ): Promise<TranscribeResponse | TranslateResponse> {
     switch (job.name) {
       case 'TranscriptVideo':
         return this.handleTranscript(job.data);
       case 'TranslateVideo':
         return this.handleTranslate(job.data);
-      default:
-        throw new Error(`Unknown job type: ${job.name}`);
+      default: {
+        const unknownJob: never = job;
+        throw new Error(`Unknown job type: ${(unknownJob as Job).name}`);
+      }
     }
   }
 
-  private formatTime(sec: number) {
-    const m = Math.floor(sec / 60);
-    const s = (sec % 60).toFixed(2).padStart(5, '0');
-    return `${String(m).padStart(2, '0')}:${s}`;
+  private get aiUri(): string {
+    const uri = process.env.AI_URI;
+    if (!uri) throw new Error('AI_URI is not configured');
+    return uri;
+  }
+
+  private formatTime(sec: number): string {
+    const totalCs = Math.round(sec * 100);
+    const m = Math.floor(totalCs / 6000);
+    const s = (totalCs % 6000) / 100;
+    return `${String(m).padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`;
   }
 
   private buildFormData(
-    filePath: string,
+    stream: fs.ReadStream,
     filename: string,
     model?: string,
     extra?: Record<string, string>,
-  ) {
+  ): FormData {
     const form = new FormData();
-    form.append('file', fs.createReadStream(filePath), { filename });
+    form.append('file', stream, { filename });
     if (model) form.append('model', model);
     if (extra) {
       for (const [k, v] of Object.entries(extra)) form.append(k, v);
@@ -53,55 +75,47 @@ export class VideoProcessor extends WorkerHost {
     return form;
   }
 
-  private async postToAI(endpoint: string, formData: FormData) {
-    return firstValueFrom(
-      this.httpService.post(
-        `${process.env.AI_URI}/${endpoint}`,
-        formData,
-        {
-          headers: formData.getHeaders(),
-          maxContentLength: Infinity,
-          maxBodyLength: Infinity,
-          timeout: 300_000,
-        },
-      ),
+  private async postToAI<T>(endpoint: string, formData: FormData): Promise<T> {
+    const response = await firstValueFrom(
+      this.httpService.post<T>(`${this.aiUri}/${endpoint}`, formData, {
+        headers: formData.getHeaders(),
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        timeout: 300_000,
+      }),
     );
+    return response.data;
   }
 
-
-  async handleTranscript(data: {
-    mode: string;
-    model: string;
-    index: number;
-    video: string;
-    jobId: string;
-    start: number;
-    end: number;
-  }) {
+  private async handleTranscript(
+    data: TranscriptJobData,
+  ): Promise<TranscribeResponse> {
     const { mode, model, index, video, jobId, start, end } = data;
     const filePath = path.join(process.cwd(), 'uploads', video);
+    const stream = fs.createReadStream(filePath);
 
     try {
-      const form = this.buildFormData(filePath, video, model);
-      const response = await this.postToAI('transcribe', form);
+      const form = this.buildFormData(stream, video, model);
+      const result = await this.postToAI<TranscribeResponse>(
+        'transcribe',
+        form,
+      );
 
-      let transcriptText: string;
-      if (mode === 'segments') {
-        transcriptText = response.data.segments
-          .map(
-            (seg: any) =>
-              `[${this.formatTime(seg.start)}-${this.formatTime(seg.end)}]:${seg.text}`,
-          )
-          .join('\n');
-      } else {
-        transcriptText = response.data.text ?? '';
-      }
+      const transcriptText =
+        mode === 'segments'
+          ? (result.segments ?? [])
+              .map(
+                (seg) =>
+                  `[${this.formatTime(seg.start)}-${this.formatTime(seg.end)}]:${seg.text}`,
+              )
+              .join('\n')
+          : (result.text ?? '');
 
       const updatedJob = await this.jobService.updateChunk(
         index,
         jobId,
         transcriptText,
-        '',  
+        '',
         start,
         end,
       );
@@ -110,54 +124,62 @@ export class VideoProcessor extends WorkerHost {
         updatedJob &&
         Number(updatedJob.processedChunks) >= Number(updatedJob.totalChunks)
       ) {
-        const finishedJob = await this.jobService.markTranscribeCompleted(jobId);
+        const finishedJob =
+          await this.jobService.markTranscribeCompleted(jobId);
 
-        if (finishedJob && finishedJob.type === 'translate' && finishedJob.transcriptText) {
+        if (
+          finishedJob &&
+          finishedJob.type === 'translate' &&
+          finishedJob.transcriptText
+        ) {
           await this.videoQueue.add('TranslateVideo', {
             jobId,
             text: finishedJob.transcriptText,
             target_lang: finishedJob.targetLang || 'en',
-          });
+          } satisfies TranslateJobData);
         }
       }
 
       await this.fileService.deleteFile(video);
 
-      return response.data;
-    } catch (error) {
-      console.error(`[TranscriptVideo] chunk ${index} of job ${jobId} failed:`, error.message);
-      await this.jobService.markJobFailed(jobId, error.message);
+      return result;
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      this.logger.error(
+        `[TranscriptVideo] chunk ${index} of job ${jobId} failed: ${message}`,
+      );
+      await this.jobService.markJobFailed(jobId, message);
       throw error;
+    } finally {
+      stream.destroy();
     }
   }
 
-  async handleTranslate(data: {
-    jobId: string;
-    text: string;
-    target_lang: string;
-  }) {
+  private async handleTranslate(
+    data: TranslateJobData,
+  ): Promise<TranslateResponse> {
     const { jobId, text, target_lang } = data;
-    console.log(
+    this.logger.log(
       `[TranslateVideo] job=${jobId} lang=${target_lang} text_len=${text?.length}`,
     );
 
     try {
       const response = await firstValueFrom(
-        this.httpService.post(
-          `${process.env.AI_URI}/translate`,
+        this.httpService.post<TranslateResponse>(
+          `${this.aiUri}/translate`,
           { text, target_lang: target_lang || 'en' },
           { headers: { 'Content-Type': 'application/json' } },
         ),
       );
 
-      const translatedText: string = response.data.translated_text ?? '';
-
+      const translatedText = response.data.translated_text ?? '';
       await this.jobService.markTranslateCompleted(jobId, translatedText);
 
       return response.data;
-    } catch (error) {
-      console.error(`[TranslateVideo] job=${jobId} failed:`, error.message);
-      await this.jobService.markJobFailed(jobId, error.message);
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      this.logger.error(`[TranslateVideo] job=${jobId} failed: ${message}`);
+      await this.jobService.markJobFailed(jobId, message);
       throw error;
     }
   }
