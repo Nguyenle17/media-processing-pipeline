@@ -33,9 +33,9 @@ export default function Header() {
 
     if (user && user.role === 'admin') {
         navLinks = [
-            { to: '/Dashboard', label: 'Dashboard' },
-            { to: '/Users-management', label: 'User Management' },
-            { to: '/Admin-role-update', label: 'Update Role' },
+            { to: '/dashboard', label: 'Dashboard' },
+            { to: '/users-management', label: 'User Management' },
+            { to: '/admin-role-update', label: 'Update Role' },
         ];
 
         menuItems = [];
@@ -45,11 +45,9 @@ export default function Header() {
             { to: '/', label: 'Home' },
             { to: '/translate', label: 'Translate' },
             { to: '/extract-audio', label: 'Extract Audio' },
-            { to: '/features', label: 'Features' },
         ];
 
         menuItems = [
-            { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
             { to: '/history', icon: History, label: 'History' },
             { to: '/projects', icon: FolderKanban, label: 'My Videos' },
             { to: '/translate', icon: Languages, label: 'Translate' },
