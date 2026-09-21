@@ -23,7 +23,7 @@ export default function AppRoutes() {
         <Route path="/translate" element={ <Translate/>}/>
         <Route path="/extract-audio" element={<ExtractAudio />} />
         <Route path="/history" element={<History />} />
-        <Route path="/oauth2/success" element={<OAuth2Success />} />
+        <Route path="/auth/callback" element={<OAuth2Success />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/dashboard" element={
           <ProtectedRoute allowedRoles={['admin']}>

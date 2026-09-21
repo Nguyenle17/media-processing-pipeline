@@ -1,8 +1,4 @@
-import type { Job } from 'bullmq';
-
-export type VideoJobName = 'TranscriptVideo' | 'TranslateVideo';
-
-export type TranscriptMode = 'segments' | 'text';
+import type { TranscriptMode } from '../types/video.type';
 
 export interface TranscriptJobData {
   mode: TranscriptMode;
@@ -34,17 +30,3 @@ export interface TranscribeResponse {
 export interface TranslateResponse {
   translated_text?: string;
 }
-
-export type TranscriptJob = Job<
-  TranscriptJobData,
-  TranscribeResponse,
-  'TranscriptVideo'
->;
-
-export type TranslateJob = Job<
-  TranslateJobData,
-  TranslateResponse,
-  'TranslateVideo'
->;
-
-export type VideoJob = TranscriptJob | TranslateJob;

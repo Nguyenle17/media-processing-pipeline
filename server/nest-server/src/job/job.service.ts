@@ -1,24 +1,46 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model, UpdateQuery } from 'mongoose';
 import { Job } from './schemas/job.schema';
 import { Chunk } from './schemas/chunk.schema';
+import type {
+  ChunkLean,
+  JobDoc,
+  JobLean,
+  JobProgressResult,
+  JobResult,
+  JobType,
+  PaginatedJobs,
+} from './type/JobType';
+
+const DEFAULT_PAGE_SIZE = 8;
+const MAX_PAGE_SIZE = 100;
 
 @Injectable()
 export class JobService {
   constructor(
-    @InjectModel(Job.name) private jobModel: Model<Job>,
-    @InjectModel(Chunk.name) private chunkModel: Model<Chunk>,
+    @InjectModel(Job.name) private readonly jobModel: Model<Job>,
+    @InjectModel(Chunk.name) private readonly chunkModel: Model<Chunk>,
   ) {}
+
+  private assertValidId(id: string): void {
+    if (!isValidObjectId(id)) {
+      throw new BadRequestException('Invalid id');
+    }
+  }
 
   async createJob(
     userId: string,
-    title: string = 'Untitled Job',
-    type: 'transcript' | 'translate' = 'transcript',
-    duration: number = 0,
+    title = 'Untitled Job',
+    type: JobType = 'transcript',
+    duration = 0,
     targetLang?: string,
-  ) {
-    const job = new this.jobModel({
+  ): Promise<JobDoc> {
+    return new this.jobModel({
       userId,
       title,
       type,
@@ -27,17 +49,23 @@ export class JobService {
       totalChunks: 0,
       processedChunks: 0,
       status: 'waiting',
-    });
-    await job.save();
-    return job;
+    }).save();
   }
 
-  async updateTotalChunks(jobId: string, totalChunks: number) {
-    return this.jobModel.findByIdAndUpdate(
-      jobId,
-      { totalChunks },
-      { new: true },
-    );
+  async updateTotalChunks(
+    jobId: string,
+    totalChunks: number,
+  ): Promise<JobDoc | null> {
+    this.assertValidId(jobId);
+    if (!Number.isInteger(totalChunks) || totalChunks < 0) {
+      throw new BadRequestException(
+        'totalChunks must be a non-negative integer',
+      );
+    }
+
+    return this.jobModel
+      .findByIdAndUpdate(jobId, { totalChunks }, { returnDocument: 'after' })
+      .exec();
   }
 
   async updateChunk(
@@ -47,85 +75,106 @@ export class JobService {
     translateText: string,
     startTime: number,
     endTime: number,
-  ) {
-    // Upsert chunk
-    await this.chunkModel.findOneAndUpdate(
-      { jobId, index },
-      {
-        jobId,
-        index,
-        transcript: transcriptText,
-        translation: translateText,
-        status: 'completed',
-        startTime,
-        endTime,
-      },
-      { upsert: true, new: true },
-    );
+  ): Promise<JobDoc | null> {
+    this.assertValidId(jobId);
 
-    return this.jobModel.findOneAndUpdate(
-      { _id: jobId },
-      {
-        $set: { status: 'processing' },
-        $inc: { processedChunks: 1 },
-      },
-      { returnDocument: 'after' },
-    );
+    const result = await this.chunkModel
+      .updateOne(
+        { jobId, index },
+        {
+          $set: {
+            transcript: transcriptText,
+            translation: translateText,
+            status: 'completed',
+            startTime,
+            endTime,
+          },
+        },
+        { upsert: true },
+      )
+      .exec();
+
+    const update: UpdateQuery<Job> = { $set: { status: 'processing' } };
+    if (result.upsertedCount > 0) {
+      update.$inc = { processedChunks: 1 };
+    }
+
+    return this.jobModel
+      .findOneAndUpdate(
+        { _id: jobId, status: { $nin: ['completed', 'translating'] } },
+        update,
+        { returnDocument: 'after' },
+      )
+      .exec();
   }
 
-  async markTranscribeCompleted(jobId: string): Promise<Job | null> {
-    const job = await this.jobModel.findById(jobId);
-    if (!job) return null;
+  async markTranscribeCompleted(jobId: string): Promise<JobDoc | null> {
+    this.assertValidId(jobId);
 
-    // Tránh gọi lại nhiều lần
-    if (job.status === 'completed' || job.status === 'translating') return job;
-    if (job.processedChunks < job.totalChunks) return null;
+    const job = await this.jobModel
+      .findById(jobId)
+      .select('type')
+      .lean()
+      .exec();
+    if (!job) return null;
 
     const chunks = await this.chunkModel
       .find({ jobId })
       .sort({ index: 1 })
-      .lean();
-
+      .select('transcript')
+      .lean()
+      .exec();
     const transcriptText = chunks.map((c) => c.transcript).join(' ');
 
-    if (job.type === 'translate') {
-      return this.jobModel.findOneAndUpdate(
-        { _id: jobId },
-        { $set: { status: 'translating', transcriptText } },
-        { returnDocument: 'after', new: true },
-      );
-    }
+    const nextStatus = job.type === 'translate' ? 'translating' : 'completed';
 
-    return this.jobModel.findOneAndUpdate(
-      { _id: jobId },
-      { $set: { status: 'completed', transcriptText } },
-      { returnDocument: 'after', new: true },
-    );
+    return this.jobModel
+      .findOneAndUpdate(
+        {
+          _id: jobId,
+          status: { $nin: ['completed', 'translating'] },
+          totalChunks: { $gt: 0 },
+          $expr: { $gte: ['$processedChunks', '$totalChunks'] },
+        },
+        { $set: { status: nextStatus, transcriptText } },
+        { returnDocument: 'after' },
+      )
+      .exec();
   }
 
-  async markTranslateCompleted(jobId: string, translatedText: string) {
-    const job = await this.jobModel.findById(jobId);
-    if (!job) return null;
-    if (job.status === 'completed') return job;
+  async markTranslateCompleted(
+    jobId: string,
+    translatedText: string,
+  ): Promise<JobDoc | null> {
+    this.assertValidId(jobId);
 
-    return this.jobModel.findOneAndUpdate(
-      { _id: jobId },
-      { $set: { status: 'completed', translatedText } },
-      { returnDocument: 'after', new: true },
-    );
+    const updated = await this.jobModel
+      .findOneAndUpdate(
+        { _id: jobId, status: { $ne: 'completed' } },
+        { $set: { status: 'completed', translatedText } },
+        { returnDocument: 'after' },
+      )
+      .exec();
+
+    return updated ?? this.jobModel.findById(jobId).exec();
   }
 
+  async markJobFailed(jobId: string, error: string): Promise<JobDoc | null> {
+    this.assertValidId(jobId);
 
-  async markJobFailed(jobId: string, error: string) {
-    return this.jobModel.findOneAndUpdate(
-      { _id: jobId },
-      { $set: { status: 'failed', error } },
-      { returnDocument: 'after', new: true },
-    );
+    return this.jobModel
+      .findOneAndUpdate(
+        { _id: jobId, status: { $ne: 'completed' } },
+        { $set: { status: 'failed', error } },
+        { returnDocument: 'after' },
+      )
+      .exec();
   }
 
-  async getProcess(jobId: string) {
-    const job = await this.jobModel.findById(jobId).lean();
+  async getProcess(jobId: string): Promise<JobProgressResult> {
+    if (!isValidObjectId(jobId)) return { status: 'not_found' };
+
+    const job = await this.jobModel.findById(jobId).lean<JobLean>().exec();
     if (!job) return { status: 'not_found' };
 
     const pct =
@@ -137,17 +186,20 @@ export class JobService {
       status: job.status,
       processedChunks: job.processedChunks,
       totalChunks: job.totalChunks,
-      updatedAt: job['updatedAt'],
+      updatedAt: job.updatedAt,
       pct,
     };
   }
 
-  async getJobById(jobId: string) {
-    return this.jobModel.findById(jobId);
+  async getJobById(jobId: string): Promise<JobDoc | null> {
+    this.assertValidId(jobId);
+    return this.jobModel.findById(jobId).exec();
   }
 
-  async getJobResult(jobId: string) {
-    const job = await this.jobModel.findById(jobId).lean();
+  async getJobResult(jobId: string): Promise<JobResult> {
+    if (!isValidObjectId(jobId)) return { status: 'not_found' };
+
+    const job = await this.jobModel.findById(jobId).lean<JobLean>().exec();
     if (!job) return { status: 'not_found' };
     if (job.status !== 'completed') return { status: job.status };
 
@@ -158,36 +210,56 @@ export class JobService {
     };
   }
 
-  async getJobsByUser(userId: string, page = 1, limit = 8) {
-    const skip = (page - 1) * limit;
+  async getJobsByUser(
+    userId: string,
+    page = 1,
+    limit = DEFAULT_PAGE_SIZE,
+  ): Promise<PaginatedJobs> {
+    const safePage = Math.max(Math.trunc(page) || 1, 1);
+    const safeLimit = Math.min(
+      Math.max(Math.trunc(limit) || DEFAULT_PAGE_SIZE, 1),
+      MAX_PAGE_SIZE,
+    );
+    const skip = (safePage - 1) * safeLimit;
+
     const [jobs, total] = await Promise.all([
       this.jobModel
         .find({ userId })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit)
-        .lean(),
-      this.jobModel.countDocuments({ userId }),
+        .limit(safeLimit)
+        .lean<JobLean[]>()
+        .exec(),
+      this.jobModel.countDocuments({ userId }).exec(),
     ]);
 
     return {
       jobs,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit) || 1,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit) || 1,
     };
   }
 
-  async getChunks(jobId: string) {
-    return this.chunkModel.find({ jobId }).sort({ index: 1 }).lean();
+  async getChunks(jobId: string): Promise<ChunkLean[]> {
+    this.assertValidId(jobId);
+    return this.chunkModel
+      .find({ jobId })
+      .sort({ index: 1 })
+      .lean<ChunkLean[]>()
+      .exec();
   }
 
-  async deleteJob(jobId: string) {
-    await Promise.all([
-      this.jobModel.findOneAndDelete({ _id: jobId }),
-      this.chunkModel.deleteMany({ jobId }),
+  async deleteJob(jobId: string): Promise<{ message: string }> {
+    this.assertValidId(jobId);
+
+    const [deletedJob] = await Promise.all([
+      this.jobModel.findByIdAndDelete(jobId).exec(),
+      this.chunkModel.deleteMany({ jobId }).exec(),
     ]);
+
+    if (!deletedJob) throw new NotFoundException(`Job ${jobId} not found`);
     return { message: 'Deleted successfully' };
   }
 }

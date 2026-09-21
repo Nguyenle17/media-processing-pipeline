@@ -3,7 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import { firstValueFrom } from 'rxjs';
-import FormData from 'form-data'; // cần "esModuleInterop": true trong tsconfig
+import FormData from 'form-data';
 import * as fs from 'fs';
 import * as path from 'path';
 import { FileService } from '../file/file.service';
@@ -13,8 +13,8 @@ import type {
   TranscriptJobData,
   TranslateJobData,
   TranslateResponse,
-  VideoJob,
-} from './type/VideoType';
+} from './interfaces/video.interface';
+import type { VideoJob } from './types/video.type';
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);

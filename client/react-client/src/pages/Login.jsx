@@ -26,13 +26,23 @@ export default function Login() {
         e.preventDefault();
         setError('');
         setLoading(true);
+
         try {
-            const response = await Api.post('/auth/login', { email, password });
-            localStorage.setItem('token', response.accessToken);
+            const response = await Api.post('/auth/login', {
+                email,
+                password,
+            });
+
+            if (!response?.accessToken) {
+                throw new Error('No access token returned');
+            }
+
             login(response.accessToken);
             navigate('/');
         } catch (err) {
-            setError('Login failed. Please check your credentials and try again.');
+            setError(
+                'Login failed. Please check your credentials and try again.'
+            );
             console.error('Login error:', err);
         } finally {
             setLoading(false);

@@ -80,13 +80,28 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = (newToken) => {
-        localStorage.setItem("token", newToken);
-        setToken(newToken);
-        Api.setToken(newToken);
+        if (!newToken) {
+            throw new Error("Access token is required");
+        }
 
-        const decoded = jwtDecode(newToken);
-        setUser(decoded);
-        scheduleRefresh(newToken);
+        try {
+            const decoded = jwtDecode(newToken);
+
+            localStorage.setItem("token", newToken);
+            setToken(newToken);
+            Api.setToken(newToken);
+            setUser(decoded);
+            scheduleRefresh(newToken);
+        } catch (error) {
+            console.error("Invalid access token:", error);
+
+            localStorage.removeItem("token");
+            setToken(null);
+            setUser(null);
+            Api.setToken(null);
+
+            throw error;
+        }
     };
 
     const logout = async () => {
@@ -102,7 +117,9 @@ export const AuthProvider = ({ children }) => {
         if (hasToken) {
             try {
                 await Api.post('/auth/logout', {});
-            } catch { }
+            } catch {
+                console.error("Logout failed. The server may not be reachable.");
+            }
         }
     };
     if (loading) return null;

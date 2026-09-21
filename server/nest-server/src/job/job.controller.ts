@@ -12,6 +12,12 @@ import {
 import { JobService } from './job.service';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
 
+type AuthenticatedRequest = Request & {
+  user: {
+    userId: string;
+  };
+};
+
 @Controller('job')
 @UseGuards(JwtAuthGuard)
 export class JobController {
@@ -22,7 +28,7 @@ export class JobController {
     @Body('type') type: 'transcript' | 'translate',
     @Body('duration') duration: number,
     @Body('targetLang') targetLang: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     const userId = req.user.userId;
     return this.jobService.createJob(
@@ -48,7 +54,7 @@ export class JobController {
   async getJobsByUser(
     @Query('page') page = 1,
     @Query('limit') limit = 8,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     const userId = req.user.userId;
     return this.jobService.getJobsByUser(userId, Number(page), Number(limit));
