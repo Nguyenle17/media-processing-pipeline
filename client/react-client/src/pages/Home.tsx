@@ -6,6 +6,7 @@ import ProgressRing from '../components/common/ProgressRing';
 import FileDropzone from '../components/common/FileDropzone';
 import ExportPanel from '../components/common/ExportPanel';
 import { RefreshCw, Wand2, ArrowRight, UploadCloud, Sparkles } from 'lucide-react';
+import { MODELS } from '../constants/models';
 import RangeSlider from 'react-range-slider-input';
 import 'react-range-slider-input/dist/style.css';
 import Api from '../api/Api';
@@ -21,7 +22,7 @@ export default function Home() {
   const [range, setRange] = useState<[number, number]>([0, 100]);
   const [text, setText] = useState<string>('');
   const [textOriginal, setTextOriginal] = useState<string>('');
-  const [mode, setMode] = useState<string>('transcribe');
+  const [mode, setMode] = useState<string>('normal');
   const [error, setError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -91,6 +92,7 @@ export default function Home() {
 
       const res = await Api.post('/job/create', {
         type: 'transcribe',
+        title: videoFile.name,
         duration,
       });
       const jobId = res.id || res._id || res.jobId;
@@ -223,6 +225,7 @@ export default function Home() {
               <FileDropzone
                 accept="video/*"
                 onChange={handleVideoChange}
+                file={videoFile}
                 label="Drop a video here, or click to browse"
               />
             ) : (
@@ -264,6 +267,12 @@ export default function Home() {
                   >
                     {isWorking ? 'Processing...' : 'Start Processing'}
                   </button>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                  <span>AI model</span>
+                  <span className="vs-model-chip">
+                    {MODELS.find((item) => item.id === (localStorage.getItem('settings') || user?.settings || 'base'))?.label || 'Base'}
+                  </span>
                 </div>
               </div>
             )}

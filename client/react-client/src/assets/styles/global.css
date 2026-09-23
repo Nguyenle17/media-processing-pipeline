@@ -30,7 +30,7 @@
 }
 
 html { scroll-behavior: smooth; }
-body { margin: 0; padding: 0; box-sizing: border-box; background: var(--vs-bg); color: var(--vs-text); font-family: var(--vs-font-sans); }
+body { margin: 0; padding: 0; box-sizing: border-box; background: radial-gradient(circle at 80% -10%, rgba(99,102,241,.14), transparent 34rem), var(--vs-bg); color: var(--vs-text); font-family: var(--vs-font-sans); }
 #root { margin: 0; padding: 0; text-align: left; }
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -74,9 +74,10 @@ body { margin: 0; padding: 0; box-sizing: border-box; background: var(--vs-bg); 
   border: 1px solid var(--vs-border);
   border-radius: var(--vs-radius-xl);
   overflow: hidden;
-  transition: border-color .2s;
+  box-shadow: 0 18px 50px rgba(0,0,0,.16);
+  transition: border-color .2s, transform .2s, box-shadow .2s;
 }
-.vs-panel:hover { border-color: var(--vs-border-hover); }
+.vs-panel:hover { border-color: var(--vs-border-hover); box-shadow: 0 22px 60px rgba(0,0,0,.24); }
 .vs-panel-header {
   padding: 16px 20px;
   border-bottom: 1px solid rgba(255,255,255,.05);
@@ -93,15 +94,18 @@ body { margin: 0; padding: 0; box-sizing: border-box; background: var(--vs-bg); 
 /* ── File drop ── */
 .vs-file-drop {
   border: 2px dashed rgba(99,102,241,.3); border-radius: var(--vs-radius);
-  padding: 20px; text-align: center; cursor: pointer;
+  padding: 42px 20px; text-align: center; cursor: pointer;
   transition: all .2s; margin-top: 16px;
   position: relative; overflow: hidden;
 }
 .vs-file-drop:hover { border-color: var(--vs-accent); background: rgba(99,102,241,.05); }
 .vs-file-drop input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
+.vs-file-drop-icon { width:58px; height:58px; margin:0 auto 14px; display:flex; align-items:center; justify-content:center; color:var(--vs-accent-light); background:rgba(99,102,241,.12); border:1px solid rgba(99,102,241,.25); border-radius:16px; }
 .vs-file-drop-label { font-size:13px; color:var(--vs-text-muted); }
 .vs-file-drop-label span { color:var(--vs-accent); font-weight:600; }
-.vs-file-name { font-family:var(--vs-font-mono); font-size:11px; color:var(--vs-accent-light); margin-top:8px; }
+.vs-file-drop-hint { margin-top:8px; color:var(--vs-text-dim); font-size:11px; }
+.vs-file-name { display:flex; align-items:center; justify-content:center; gap:6px; font-family:var(--vs-font-mono); font-size:11px; color:var(--vs-accent-light); margin:16px auto 0; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vs-file-name span { color:var(--vs-text-dim); flex-shrink:0; }
 
 /* ── Buttons ── */
 .vs-btn {
@@ -144,6 +148,7 @@ body { margin: 0; padding: 0; box-sizing: border-box; background: var(--vs-bg); 
 }
 .vs-submit-btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 8px 32px rgba(99,102,241,.4); }
 .vs-submit-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+.vs-model-chip { padding:4px 9px; border:1px solid rgba(99,102,241,.28); border-radius:999px; color:var(--vs-accent-light); background:rgba(99,102,241,.1); font-family:var(--vs-font-mono); }
 
 /* ── Result text ── */
 .vs-result-text {
@@ -342,4 +347,16 @@ body { margin: 0; padding: 0; box-sizing: border-box; background: var(--vs-bg); 
 video {
   width:100%; border-radius:var(--vs-radius);
   background:#111; aspect-ratio:16/9; object-fit:cover;
+}
+
+/* ── Form polish ── */
+select, input, textarea, button { font-family: inherit; }
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline:2px solid var(--vs-accent-light); outline-offset:2px; }
+@media(max-width:640px) {
+  .vs-panel-header { padding:14px 16px; }
+  .vs-panel-body { padding:16px; }
+  .vs-section-title { margin-bottom:24px; }
+  .vs-export-row--inline { align-items:stretch; flex-wrap:wrap; }
+  .vs-export-row--inline .vs-export-label { width:100%; }
+  .vs-export-row--inline .vs-export-select, .vs-export-row--inline .vs-btn { flex:1; }
 }

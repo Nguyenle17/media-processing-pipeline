@@ -80,6 +80,7 @@ export default function Translate() {
       formData.append('end', range[1].toString());
       const res = await Api.post('/job/create', {
         type: 'translate',
+        title: videoFile.name,
         targetLang,
         duration,
       });

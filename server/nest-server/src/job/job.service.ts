@@ -40,9 +40,10 @@ export class JobService {
     duration = 0,
     targetLang?: string,
   ): Promise<JobDoc> {
+    const safeTitle = title?.trim() || 'Untitled Job';
     return new this.jobModel({
       userId,
-      title,
+      title: safeTitle.slice(0, 200),
       type,
       duration,
       targetLang,

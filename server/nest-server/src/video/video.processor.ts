@@ -52,6 +52,16 @@ export class VideoProcessor extends WorkerHost {
     return uri;
   }
 
+  /**
+   * Whisper large/medium models can legitimately take longer than five
+   * minutes. Axios uses 0 for no timeout, while deployments may opt into a
+   * limit with AI_REQUEST_TIMEOUT_MS.
+   */
+  private get aiRequestTimeout(): number {
+    const value = Number(process.env.AI_REQUEST_TIMEOUT_MS ?? 0);
+    return Number.isFinite(value) && value >= 0 ? value : 0;
+  }
+
   private formatTime(sec: number): string {
     const totalCs = Math.round(sec * 100);
     const m = Math.floor(totalCs / 6000);
@@ -81,7 +91,7 @@ export class VideoProcessor extends WorkerHost {
         headers: formData.getHeaders(),
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
-        timeout: 300_000,
+        timeout: this.aiRequestTimeout,
       }),
     );
     return response.data;

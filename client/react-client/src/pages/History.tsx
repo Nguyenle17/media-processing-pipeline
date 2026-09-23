@@ -5,7 +5,7 @@ import Modal from '../components/common/Modal';
 import Pagination from '../components/common/Pagination';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { saveAs } from 'file-saver';
-import { Trash2, Download, Search, Clock, FileText, CheckCircle, AlertCircle, Loader2, Users } from 'lucide-react';
+import { Trash2, Download, Search, Clock, FileText, CheckCircle, AlertCircle, Loader2, ListVideo, RefreshCw } from 'lucide-react';
 import Api from '../api/Api';
 
 interface Segment {
@@ -30,6 +30,8 @@ interface Job {
   processedChunks?: number;
   totalChunks?: number;
   countChunks?: number;
+  error?: string;
+  chunks?: Array<{ index: number; transcript?: string; translation?: string; startTime: number; endTime: number }>;
 }
 
 export default function History() {
@@ -43,6 +45,7 @@ export default function History() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [viewMode, setViewMode] = useState<'text' | 'speaker'>('text');
   const [search, setSearch] = useState('');
+  const [error, setError] = useState<string | null>(null);
   
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<string | null>(null);
@@ -50,11 +53,13 @@ export default function History() {
   const fetchJobs = async () => {
     try {
       setLoading(true);
-      const res = await Api.get(`/jobs?page=${page}&limit=10&search=${search}`);
+      setError(null);
+      const res = await Api.get(`/job/user?page=${page}&limit=8`);
       setJobs(res.jobs || []);
       setTotalPages(res.totalPages || 1);
     } catch (err) {
       console.error(err);
+      setError(err instanceof Error ? err.message : 'Unable to load history.');
     } finally {
       setLoading(false);
     }
@@ -67,7 +72,7 @@ export default function History() {
   const handleDeleteJob = async () => {
     if (!jobToDelete) return;
     try {
-      await Api.delete(`/jobs/${jobToDelete}`);
+      await Api.delete(`/job/delete?jobId=${encodeURIComponent(jobToDelete)}`);
       if (selectedJob?._id === jobToDelete) {
         setSelectedJob(null);
       }
@@ -77,6 +82,17 @@ export default function History() {
     } finally {
       setIsDeleteModalOpen(false);
       setJobToDelete(null);
+    }
+  };
+
+  const openJob = async (job: Job) => {
+    setSelectedJob(job);
+    if (job.status !== 'completed') return;
+    try {
+      const res = await Api.get(`/job/chunks?jobId=${encodeURIComponent(job._id)}`);
+      setSelectedJob({ ...job, chunks: Array.isArray(res) ? res : [] });
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -100,12 +116,17 @@ export default function History() {
     }
   };
 
+  const visibleJobs = jobs.filter((job) => {
+    const query = search.trim().toLowerCase();
+    return !query || (job.title || 'Untitled Job').toLowerCase().includes(query);
+  });
+
   return (
     <div className="history-container fade-in p-6 max-w-7xl mx-auto h-[calc(100vh-80px)] flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="vs-section-title text-3xl font-bold mb-2">History</h1>
-          <p className="text-gray-400">View and manage your past media processing jobs.</p>
+          <p className="text-gray-400">Your transcriptions, translations and processing history.</p>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
@@ -122,20 +143,25 @@ export default function History() {
       <div className="flex gap-6 flex-1 min-h-0">
         <div className="w-1/3 flex flex-col vs-panel">
           <div className="vs-panel-header">
-            <h2 className="vs-panel-title">Recent Jobs</h2>
+            <div className="flex items-center justify-between w-full">
+              <h2 className="vs-panel-title flex items-center gap-2"><ListVideo size={16} /> Recent jobs</h2>
+              <button className="vs-btn vs-btn--ghost !p-2" onClick={fetchJobs} title="Refresh history"><RefreshCw size={14} /></button>
+            </div>
           </div>
           <div className="vs-panel-body flex-1 overflow-y-auto vs-scroll p-0">
             {loading ? (
               <div className="flex justify-center p-8"><LoadingSpinner size={32} color="#6366f1" /></div>
-            ) : jobs.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">No jobs found.</div>
+            ) : error ? (
+              <div className="p-8 text-center text-red-300 text-sm">{error}</div>
+            ) : visibleJobs.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">No transcription found.</div>
             ) : (
               <div className="divide-y divide-gray-800">
-                {jobs.map(job => (
+                {visibleJobs.map(job => (
                   <div 
                     key={job._id} 
                     className={`p-4 cursor-pointer hover:bg-gray-800/50 transition-colors ${selectedJob?._id === job._id ? 'bg-gray-800/80 border-l-2 border-indigo-500' : ''}`}
-                    onClick={() => setSelectedJob(job)}
+                    onClick={() => openJob(job)}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div className="font-medium text-gray-200 truncate pr-2">{job.title || 'Untitled Job'}</div>
@@ -143,10 +169,11 @@ export default function History() {
                         <Trash2 size={16} />
                       </button>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                    <div className="flex items-center gap-3 text-xs text-gray-400">
                       <span className="flex items-center gap-1">{getStatusIcon(job.status)} {job.status}</span>
                       <span>{formatDate(job.createdAt)}</span>
                     </div>
+                    {job.status === 'completed' && <div className="mt-2 text-xs text-gray-500 truncate">{job.transcriptText || job.translatedText || 'Transcript ready'}</div>}
                   </div>
                 ))}
               </div>
@@ -173,7 +200,7 @@ export default function History() {
                     <button className={`vs-btn ${viewMode === 'text' ? 'vs-btn--primary' : 'vs-btn--ghost'} text-xs`} onClick={() => setViewMode('text')}>
                       <FileText size={14} className="mr-1" /> Text
                     </button>
-                    {selectedJob.segments && selectedJob.segments.length > 0 && (
+                    {selectedJob.chunks && selectedJob.chunks.length > 0 && (
                       <button className={`vs-btn ${viewMode === 'speaker' ? 'vs-btn--primary' : 'vs-btn--ghost'} text-xs`} onClick={() => setViewMode('speaker')}>
                         <Users size={14} className="mr-1" /> Speakers
                       </button>
@@ -190,22 +217,22 @@ export default function History() {
                 ) : selectedJob.status === 'failed' ? (
                   <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4">
                     <AlertCircle size={48} />
-                    <p>This job failed to process.</p>
+                    <p>{selectedJob.error || 'This job failed to process.'}</p>
                   </div>
                 ) : (
                   <div className="p-4 text-gray-200 text-sm leading-relaxed">
                     {viewMode === 'text' ? (
-                      <div className="whitespace-pre-wrap">{selectedJob.resultText || selectedJob.translatedText || selectedJob.transcriptText}</div>
+                      <div className="whitespace-pre-wrap">{selectedJob.resultText || selectedJob.translatedText || selectedJob.transcriptText || 'No transcript available.'}</div>
                     ) : (
                       <div className="space-y-4">
-                        {selectedJob.segments?.map((seg, i) => (
+                        {selectedJob.chunks?.map((seg, i) => (
                           <div key={i} className="flex gap-4">
                             <div className="w-24 shrink-0 text-right">
-                              <div className="font-medium text-indigo-400">{seg.speaker || 'Speaker'}</div>
-                              <div className="text-xs text-gray-500">{Math.floor(seg.start)}s - {Math.floor(seg.end)}s</div>
+                              <div className="font-medium text-indigo-400">Part {seg.index + 1}</div>
+                              <div className="text-xs text-gray-500">{Math.floor(seg.startTime)}s - {Math.floor(seg.endTime)}s</div>
                             </div>
                             <div className="bg-[#13131f] p-3 rounded-lg flex-1 border border-gray-800">
-                              {seg.text}
+                              {seg.transcript || seg.translation || 'No text'}
                             </div>
                           </div>
                         ))}
