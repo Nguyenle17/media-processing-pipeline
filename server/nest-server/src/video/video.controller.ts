@@ -6,6 +6,7 @@ import {
   UseInterceptors,
   UseGuards,
   Res,
+  BadRequestException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -23,6 +24,9 @@ export class VideoController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: any,
   ) {
+    if (!file) {
+      throw new BadRequestException('Video file is required');
+    }
     return this.videoService.transcribeVideo(file, body);
   }
 
@@ -38,7 +42,7 @@ export class VideoController {
 
   @Post('tts')
   async textToSpeech(
-    @Body() body: { text: string; lang: string },
+    @Body() body: { text: string; language: string },
     @Res() res: Response,
   ) {
     const { audioBuffer, filename } =

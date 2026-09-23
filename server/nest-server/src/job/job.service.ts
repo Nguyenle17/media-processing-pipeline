@@ -36,7 +36,7 @@ export class JobService {
   async createJob(
     userId: string,
     title = 'Untitled Job',
-    type: JobType = 'transcript',
+    type: JobType = 'transcribe',
     duration = 0,
     targetLang?: string,
   ): Promise<JobDoc> {

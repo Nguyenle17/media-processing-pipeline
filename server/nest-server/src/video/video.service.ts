@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { FileService } from '../file/file.service';
 import { JobService } from '../job/job.service';
 import ffmpeg from 'fluent-ffmpeg';
-import * as fs from 'fs';
 import * as path from 'path';
 
 @Injectable()
@@ -17,16 +20,32 @@ export class VideoService {
 
   async transcribeVideo(file: Express.Multer.File, data: any) {
     const { jobId, mode = 'normal', model = 'tiny' } = data;
+    if (!jobId) throw new BadRequestException('jobId is required');
+    if (!['normal', 'segments'].includes(mode)) {
+      throw new BadRequestException('mode must be normal or segments');
+    }
+    if (!['tiny', 'base', 'small', 'medium', 'large'].includes(model)) {
+      throw new BadRequestException('Unsupported transcription model');
+    }
     const start = parseFloat(data.start) || 0;
 
     const inputPath = await this.fileService.saveFile(file);
     const fullPath = path.join(process.cwd(), 'uploads', inputPath);
 
-    const videoDuration = await this.getVideoDuration(fullPath);
-    const end = parseFloat(data.end) || videoDuration;
+    let videoDuration: number;
+    try {
+      videoDuration = await this.getVideoDuration(fullPath);
+    } catch (error) {
+      await this.fileService.deleteFile(inputPath, { ignoreMissing: true });
+      throw new BadRequestException('Unable to read video metadata');
+    }
+    const requestedEnd = Number.parseFloat(data.end);
+    const end = Number.isFinite(requestedEnd) && requestedEnd > 0
+      ? Math.min(requestedEnd, videoDuration)
+      : videoDuration;
 
     if (start >= end) {
-      fs.unlinkSync(fullPath);
+      await this.fileService.deleteFile(inputPath, { ignoreMissing: true });
       throw new BadRequestException('start phải nhỏ hơn end');
     }
 
@@ -42,20 +61,25 @@ export class VideoService {
 
       await this.splitVideo(fullPath, chunkPath, chunkStart, chunkDuration);
       await this.videoQueue.add('TranscriptVideo', {
-        mode, model, index: i, video: chunkName,
-        jobId, start: chunkStart, end: chunkEnd,
+        mode,
+        model,
+        index: i,
+        video: chunkName,
+        jobId,
+        start: chunkStart,
+        end: chunkEnd,
       });
     }
 
-    fs.unlinkSync(fullPath);
+    await this.fileService.deleteFile(inputPath, { ignoreMissing: true });
     return { message: 'Video split and queued', totalChunks };
   }
-
 
   async translateVideo(data: { jobId: string; target_lang: string }) {
     const job = await this.jobService.getJobById(data.jobId);
     if (!job) throw new NotFoundException('Job not found');
-    if (!job.transcriptText) throw new BadRequestException('Transcript chưa sẵn sàng');
+    if (!job.transcriptText)
+      throw new BadRequestException('Transcript chưa sẵn sàng');
 
     await this.videoQueue.add('TranslateVideo', {
       jobId: data.jobId,
@@ -64,7 +88,6 @@ export class VideoService {
     });
     return { message: 'Translation queued' };
   }
-
 
   async checkGrammar(data: { text: string }) {
     const response = await fetch(`${process.env.AI_URI}/grammar`, {
@@ -77,16 +100,21 @@ export class VideoService {
     return { correctedText: json.corrected_text };
   }
 
-  async textToSpeech(data: { text: string; lang: string }): Promise<{ audioBuffer: Buffer; filename: string }> {
-    const { text, lang } = data;
+  async textToSpeech(data: {
+    text: string;
+    language: string;
+  }): Promise<{ audioBuffer: Buffer; filename: string }> {
+    const { text, language } = data;
 
-    if (!text?.trim()) throw new BadRequestException('text không được để trống');
-    if (!lang?.trim()) throw new BadRequestException('lang không được để trống');
+    if (!text?.trim())
+      throw new BadRequestException('text không được để trống');
+    if (!language?.trim())
+      throw new BadRequestException('language không được để trống');
 
     const response = await fetch(`${process.env.AI_URI}/text-to-speech`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.trim(), lang: lang.trim() }),
+      body: JSON.stringify({ text: text.trim(), lang: language.trim() }),
     });
 
     if (!response.ok) {
@@ -96,11 +124,10 @@ export class VideoService {
 
     const arrayBuffer = await response.arrayBuffer();
     const audioBuffer = Buffer.from(arrayBuffer);
-    const filename = `tts_${lang}_${Date.now()}.mp3`;
+    const filename = `tts_${language}_${Date.now()}.mp3`;
 
     return { audioBuffer, filename };
   }
-
 
   getVideoDuration(filePath: string): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -111,7 +138,12 @@ export class VideoService {
     });
   }
 
-  splitVideo(input: string, output: string, start: number, duration: number): Promise<void> {
+  splitVideo(
+    input: string,
+    output: string,
+    start: number,
+    duration: number,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       ffmpeg(input)
         .setStartTime(start)

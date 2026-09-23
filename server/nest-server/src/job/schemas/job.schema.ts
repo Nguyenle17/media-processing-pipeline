@@ -8,7 +8,7 @@ export class Job {
   @Prop({ default: 'Untitled Job' })
   title: string;
 
-  @Prop({ default: 'transcript', enum: ['transcript', 'translate'] })
+  @Prop({ default: 'transcribe', enum: ['transcribe', 'translate'] })
   type: string;
 
   @Prop({ default: 0 })

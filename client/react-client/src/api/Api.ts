@@ -1,20 +1,24 @@
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 class Api {
+    token: string | null;
+    BASE_URL: string;
+    onLogout?: () => void;
+
     constructor() {
         this.token = localStorage.getItem("token") || null;
         this.BASE_URL = BASE_URL;
     }
 
-    setToken(token) {
+    setToken(token: string | null) {
         this.token = token;
     }
 
-    setLogoutCallback(callback) {
+    setLogoutCallback(callback: () => void) {
         this.onLogout = callback;
     }
 
-    async refreshToken() {
+    async refreshToken(): Promise<string> {
         try {
             const response = await fetch(this.BASE_URL + '/auth/refresh', {
                 method: 'POST',
@@ -34,7 +38,7 @@ class Api {
         }
     }
 
-    async get(ENDPOINT) {
+    async get(ENDPOINT: string): Promise<any> {
         const response = await fetch(this.BASE_URL + ENDPOINT, {
             method: 'GET',
             credentials: 'include',
@@ -50,7 +54,7 @@ class Api {
         return response.json();
     }
 
-    async post(ENDPOINT, DATA, HEADERS = 'application/json') {
+    async post(ENDPOINT: string, DATA: any, HEADERS: string = 'application/json'): Promise<any> {
         const isFormData = DATA instanceof FormData;
 
         const response = await fetch(this.BASE_URL + ENDPOINT, {
@@ -72,7 +76,7 @@ class Api {
         return response.json();
     }
 
-    async put(ENDPOINT, DATA) {
+    async put(ENDPOINT: string, DATA: any): Promise<any> {
         const isFormData = DATA instanceof FormData;
 
         const response = await fetch(this.BASE_URL + ENDPOINT, {
@@ -94,7 +98,7 @@ class Api {
         return response.json();
     }
 
-    async delete(ENDPOINT) {
+    async delete(ENDPOINT: string): Promise<any> {
         const response = await fetch(this.BASE_URL + ENDPOINT, {
             method: 'DELETE',
             credentials: 'include',
@@ -110,7 +114,7 @@ class Api {
         return response.json();
     }
 
-    async patch(ENDPOINT, DATA) {
+    async patch(ENDPOINT: string, DATA: any): Promise<any> {
         const isFormData = DATA instanceof FormData;
 
         const response = await fetch(this.BASE_URL + ENDPOINT, {

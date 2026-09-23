@@ -1,35 +1,28 @@
-import { useContext, useState, useRef, useEffect } from "react";
-import { AuthContext } from "../context/AuthContext";
-import { Link, useLocation } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
+import { useClickOutside } from "../../hooks/useClickOutside";
 import {
-    LayoutDashboard,
     History,
     FolderKanban,
     Languages,
     Settings,
+    Menu,
+    X
 } from "lucide-react";
 
-
 export default function Header() {
-    const { user, logout } = useContext(AuthContext);
+    const { user, logout } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef(null);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
     const location = useLocation();
 
-    useEffect(() => {
-        const handler = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, []);
+    useClickOutside(dropdownRef, () => setIsOpen(false));
 
-    let navLinks = null;
-    let menuItems = null;
+    let navLinks = [];
+    let menuItems = [];
 
     if (user && user.role === 'admin') {
         navLinks = [
@@ -37,16 +30,13 @@ export default function Header() {
             { to: '/users-management', label: 'User Management' },
             { to: '/admin-role-update', label: 'Update Role' },
         ];
-
         menuItems = [];
-    }
-    else {
+    } else {
         navLinks = [
             { to: '/', label: 'Home' },
             { to: '/translate', label: 'Translate' },
             { to: '/extract-audio', label: 'Extract Audio' },
         ];
-
         menuItems = [
             { to: '/history', icon: History, label: 'History' },
             { to: '/projects', icon: FolderKanban, label: 'My Videos' },
@@ -55,8 +45,7 @@ export default function Header() {
         ];
     }
 
-
-    const isActive = (path) => location.pathname === path;
+    const isActive = (path: string) => location.pathname === path;
 
     return (
         <>
@@ -91,8 +80,11 @@ export default function Header() {
                     color: transparent;
                 }
                 .nav-links {
-                    display: flex; align-items: center; gap: 4px;
+                    display: none; align-items: center; gap: 4px;
                     list-style: none; margin: 0; padding: 0;
+                }
+                @media (min-width: 768px) {
+                    .nav-links { display: flex; }
                 }
                 .nav-link {
                     padding: 6px 12px; border-radius: 8px;
@@ -107,16 +99,6 @@ export default function Header() {
                     background: rgba(99,102,241,0.15);
                     border: 1px solid rgba(99,102,241,0.25);
                 }
-                .avatar {
-                    width: 36px; height: 36px; border-radius: 50%;
-                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: 13px; font-weight: 700; color: #fff;
-                    cursor: pointer; transition: all 0.2s;
-                    border: 2px solid rgba(99,102,241,0.3);
-                    flex-shrink: 0;
-                }
-                .avatar:hover { border-color: #6366f1; box-shadow: 0 0 16px rgba(99,102,241,0.4); }
                 .dropdown {
                     position: absolute; top: calc(100% + 8px); right: 0;
                     width: 200px;
@@ -151,40 +133,35 @@ export default function Header() {
                 .dropdown-user-name { font-size: 13px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
                 .dropdown-user-email { font-size: 11px; color: #52525b; margin-top: 2px; font-family: 'JetBrains Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
                 .auth-btns { display: flex; gap: 8px; align-items: center; }
-                .btn-login {
-                    padding: 6px 14px;
-                    border-radius: 8px;
-                    font-size: 13px; font-weight: 600;
-                    background: rgba(99,102,241,0.15);
-                    border: 1px solid rgba(99,102,241,0.3);
-                    color: #a5b4fc; cursor: pointer;
-                    text-decoration: none;
-                    transition: all 0.15s;
-                    font-family: 'Syne', sans-serif;
+                
+                .mobile-menu-btn {
+                    display: block;
+                    background: transparent;
+                    border: none;
+                    color: #fff;
+                    cursor: pointer;
                 }
-                .btn-login:hover { background: rgba(99,102,241,0.3); color: #fff; }
-                .btn-register {
-                    padding: 6px 14px; border-radius: 8px;
-                    font-size: 13px; font-weight: 600;
-                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-                    border: none; color: #fff; cursor: pointer;
-                    text-decoration: none;
-                    transition: all 0.15s;
-                    font-family: 'Syne', sans-serif;
-                    box-shadow: 0 4px 16px rgba(99,102,241,0.25);
+                @media (min-width: 768px) {
+                    .mobile-menu-btn { display: none; }
                 }
-                .btn-register:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+                .mobile-nav {
+                    display: flex;
+                    flex-direction: column;
+                    background: #111118;
+                    position: absolute;
+                    top: 64px; left: 0; right: 0;
+                    padding: 16px;
+                    border-bottom: 1px solid rgba(99,102,241,0.2);
+                }
             `}</style>
 
             <nav className="header-nav">
                 <div className="header-inner">
-                    {/* Logo */}
                     <Link to="/" className="logo">
                         <div className="logo-icon">▶</div>
                         <span className="logo-text">VideoSub</span>
                     </Link>
 
-                    {/* Nav links */}
                     <ul className="nav-links">
                         {navLinks.map(({ to, label }) => (
                             <li key={to}>
@@ -195,11 +172,10 @@ export default function Header() {
                         ))}
                     </ul>
 
-                    {/* Right */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }} ref={dropdownRef}>
                         {user ? (
                             <>
-                                <div className="avatar" onClick={() => setIsOpen(!isOpen)}>
+                                <div className="vs-avatar" onClick={() => setIsOpen(!isOpen)} style={{ cursor: 'pointer' }}>
                                     {user.name ? user.name[0].toUpperCase() : 'U'}
                                 </div>
                                 {isOpen && (
@@ -210,7 +186,6 @@ export default function Header() {
                                         </div>
                                         {menuItems.map((item) => {
                                             const Icon = item.icon;
-
                                             return (
                                                 <Link to={item.to} key={item.to} className="dropdown-item" onClick={() => setIsOpen(false)}>
                                                     <Icon size={18} strokeWidth={2} />
@@ -218,7 +193,7 @@ export default function Header() {
                                                 </Link>
                                             );
                                         })}
-                                        <div className="dropdown-divider" />
+                                        {menuItems.length > 0 && <div className="dropdown-divider" />}
                                         <button className="dropdown-item danger" onClick={() => { setIsOpen(false); logout(); navigate('/'); }}>
                                             Sign Out
                                         </button>
@@ -226,16 +201,32 @@ export default function Header() {
                                 )}
                             </>
                         ) : (
-                            <div className="auth-btns">
-                                <Link to="/login" className="btn-login">Login</Link>
-                                <Link to="/register" className="btn-register">Register</Link>
+                            <div className="auth-btns nav-links">
+                                <Link to="/login" className="vs-btn vs-btn--ghost" style={{ padding: '6px 14px' }}>Login</Link>
+                                <Link to="/register" className="vs-btn vs-btn--primary" style={{ padding: '6px 14px' }}>Register</Link>
+                            </div>
+                        )}
+                        <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+                            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                        </button>
+                    </div>
+                </div>
+                {mobileMenuOpen && (
+                    <div className="mobile-nav">
+                        {navLinks.map(({ to, label }) => (
+                            <Link key={to} to={to} className={`nav-link ${isActive(to) ? 'active' : ''}`} style={{ padding: '12px' }} onClick={() => setMobileMenuOpen(false)}>
+                                {label}
+                            </Link>
+                        ))}
+                        {!user && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                                <Link to="/login" className="vs-btn vs-btn--ghost" onClick={() => setMobileMenuOpen(false)}>Login</Link>
+                                <Link to="/register" className="vs-btn vs-btn--primary" onClick={() => setMobileMenuOpen(false)}>Register</Link>
                             </div>
                         )}
                     </div>
-                </div>
+                )}
             </nav>
-
-            {/* Spacer */}
             <div style={{ height: 64 }} />
         </>
     );

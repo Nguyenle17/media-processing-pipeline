@@ -68,7 +68,8 @@ export class VideoProcessor extends WorkerHost {
   ): FormData {
     const form = new FormData();
     form.append('file', stream, { filename });
-    if (model) form.append('model', model);
+    // The Python API names this multipart field `type`.
+    if (model) form.append('type', model);
     if (extra) {
       for (const [k, v] of Object.entries(extra)) form.append(k, v);
     }
@@ -106,7 +107,7 @@ export class VideoProcessor extends WorkerHost {
           ? (result.segments ?? [])
               .map(
                 (seg) =>
-                  `[${this.formatTime(seg.start)}-${this.formatTime(seg.end)}]:${seg.text}`,
+                  `[${this.formatTime(Number(start) + seg.start)}-${this.formatTime(Number(start) + seg.end)}]:${seg.text}`,
               )
               .join('\n')
           : (result.text ?? '');

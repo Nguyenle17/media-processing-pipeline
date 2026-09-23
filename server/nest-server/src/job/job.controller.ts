@@ -25,7 +25,7 @@ export class JobController {
   @Post('create')
   async createJob(
     @Body('title') title: string,
-    @Body('type') type: 'transcript' | 'translate',
+    @Body('type') type: 'transcribe' | 'translate',
     @Body('duration') duration: number,
     @Body('targetLang') targetLang: string,
     @Req() req: AuthenticatedRequest,
@@ -34,7 +34,7 @@ export class JobController {
     return this.jobService.createJob(
       userId,
       title,
-      type ?? 'transcript',
+      type ?? 'transcribe',
       duration ?? 0,
       targetLang,
     );

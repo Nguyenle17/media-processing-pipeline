@@ -3,7 +3,7 @@ import type { Job } from '../schemas/job.schema';
 import type { Chunk } from '../schemas/chunk.schema';
 
 export type JobDoc = HydratedDocument<Job>;
-export type JobType = 'transcript' | 'translate';
+export type JobType = 'transcribe' | 'translate';
 export type JobStatus = Job['status'];
 
 export type JobLean = Job & {
