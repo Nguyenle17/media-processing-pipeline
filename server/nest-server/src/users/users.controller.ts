@@ -2,6 +2,7 @@ import {
   Controller,
   Body,
   Get,
+  Put,
   Post,
   Param,
   UseGuards,
@@ -34,6 +35,13 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('settings')
+  async getSettings(@Req() req: AuthenticatedRequest) {
+    const user = await this.usersService.findById(req.user.userId);
+    return { selectedModel: user?.selectedModel || 'base' };
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   async findById(@Param('id') id: string) {
     return this.usersService.findById(id);
@@ -46,7 +54,7 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post('settings')
+  @Put('settings')
   async updateSettings(
     @Body() body: { model: string },
     @Req() req: AuthenticatedRequest,

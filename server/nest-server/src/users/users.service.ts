@@ -15,6 +15,7 @@ type UserId = string | Types.ObjectId;
 const SALT_ROUNDS = 10;
 const SAFE_FIELDS = '-password -refreshToken';
 const MONGO_DUPLICATE_KEY_CODE = 11000;
+const SUPPORTED_MODELS = new Set(['tiny', 'base', 'small', 'medium', 'large']);
 
 @Injectable()
 export class UsersService {
@@ -98,6 +99,9 @@ export class UsersService {
   }
 
   updateSettings(id: UserId, model: string): Promise<UserDocument> {
+    if (!SUPPORTED_MODELS.has(model)) {
+      throw new BadRequestException('Unsupported transcription model');
+    }
     return this.updateById(id, { selectedModel: model });
   }
 

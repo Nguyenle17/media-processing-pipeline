@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { MODELS } from '../constants/models';
-import { Save, Server, Zap, Target } from 'lucide-react';
+import { Save, Server, Zap, Target, CheckCircle2, AlertCircle } from 'lucide-react';
 import Api from '../api/Api';
 
 interface DotProps {
@@ -34,16 +34,18 @@ export default function Settings() {
   const [selectedModel, setSelectedModel] = useState<string>('base');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         const res = await Api.get('/users/settings');
-        if (res?.model) {
-          setSelectedModel(res.model);
+        if (res?.selectedModel || res?.model) {
+          setSelectedModel(res.selectedModel || res.model);
         }
       } catch (err) {
         console.error("Failed to load settings", err);
+        setError('Unable to load your settings. Please try again.');
       }
     };
     if (token) fetchSettings();
@@ -52,12 +54,15 @@ export default function Settings() {
   const handleSave = async () => {
     setLoading(true);
     setSuccess(false);
+    setError(null);
     try {
       await Api.put('/users/settings', { model: selectedModel });
+      localStorage.setItem('settings', selectedModel);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save settings", err);
+      setError(err instanceof Error ? err.message : 'Unable to save settings.');
     } finally {
       setLoading(false);
     }
@@ -102,14 +107,14 @@ export default function Settings() {
                     }`}>
                       {selectedModel === model.id && <div className="w-2 h-2 rounded-full bg-indigo-500" />}
                     </div>
-                    <span className="font-medium text-gray-200">{model.name}</span>
+                <span className="font-medium text-gray-200">{model.label}</span>
                   </div>
                   <span className="vs-badge bg-gray-800 text-xs text-gray-400 px-2 py-1 rounded">
                     {model.size}
                   </span>
                 </div>
                 
-                <p className="text-xs text-gray-500 mb-4 ml-6">{model.description}</p>
+                <p className="text-xs text-gray-500 mb-4 ml-6">{model.desc}</p>
                 
                 <div className="ml-6 space-y-2">
                   <div className="flex items-center justify-between text-xs">
@@ -126,7 +131,8 @@ export default function Settings() {
           </div>
         </div>
         <div className="p-4 border-t border-gray-800 bg-[#13131f] flex justify-end items-center gap-4">
-          {success && <span className="text-green-500 text-sm">Settings saved successfully!</span>}
+          {success && <span className="text-green-400 text-sm flex items-center gap-2"><CheckCircle2 size={16} /> Settings saved</span>}
+          {error && <span className="text-red-400 text-sm flex items-center gap-2"><AlertCircle size={16} /> {error}</span>}
           <button 
             className="vs-submit-btn flex items-center gap-2"
             onClick={handleSave}

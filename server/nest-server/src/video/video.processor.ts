@@ -5,7 +5,6 @@ import { Job, Queue } from 'bullmq';
 import { firstValueFrom } from 'rxjs';
 import FormData from 'form-data';
 import * as fs from 'fs';
-import * as path from 'path';
 import { FileService } from '../file/file.service';
 import { JobService } from '../job/job.service';
 import type {
@@ -92,10 +91,11 @@ export class VideoProcessor extends WorkerHost {
     data: TranscriptJobData,
   ): Promise<TranscribeResponse> {
     const { mode, model, index, video, jobId, start, end } = data;
-    const filePath = path.join(process.cwd(), 'uploads', video);
-    const stream = fs.createReadStream(filePath);
+    let stream: fs.ReadStream | undefined;
 
     try {
+      const filePath = this.fileService.getFilePath(video);
+      stream = fs.createReadStream(filePath);
       const form = this.buildFormData(stream, video, model);
       const result = await this.postToAI<TranscribeResponse>(
         'transcribe',
@@ -152,7 +152,7 @@ export class VideoProcessor extends WorkerHost {
       await this.jobService.markJobFailed(jobId, message);
       throw error;
     } finally {
-      stream.destroy();
+      stream?.destroy();
     }
   }
 

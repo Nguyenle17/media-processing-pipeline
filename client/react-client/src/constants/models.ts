@@ -11,11 +11,18 @@ export interface WhisperModel {
 
 export const MODELS: WhisperModel[] = [
   {
+    id: 'tiny',
+    label: 'Tiny',
+    desc: 'Fastest option for drafts and quick previews. Accuracy is lower on noisy audio.',
+    speed: 5, accuracy: 2, size: '75 MB',
+    badge: 'Fastest', badgeColor: '#f59e0b',
+  },
+  {
     id: 'base',
     label: 'Base',
     desc: 'Good balance between speed and accuracy. Suitable for most use cases.',
     speed: 3, accuracy: 3, size: '145 MB',
-    badge: 'Fastest', badgeColor: '#f59e0b',
+    badge: 'Balanced', badgeColor: '#6366f1',
   },
   {
     id: 'small',

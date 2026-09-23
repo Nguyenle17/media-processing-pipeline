@@ -11,7 +11,7 @@ import 'react-range-slider-input/dist/style.css';
 import Api from '../api/Api';
 
 export default function Home() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const uploader = useUploadWithProgress();
   const poller = useJobPolling();
 
@@ -22,6 +22,7 @@ export default function Home() {
   const [text, setText] = useState<string>('');
   const [textOriginal, setTextOriginal] = useState<string>('');
   const [mode, setMode] = useState<string>('transcribe');
+  const [error, setError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -52,6 +53,7 @@ export default function Home() {
       setVideoURL(URL.createObjectURL(file));
       setText('');
       setTextOriginal('');
+      setError(null);
       poller.reset();
       uploader.reset();
     }
@@ -75,6 +77,7 @@ export default function Home() {
 
     setText('');
     setTextOriginal('');
+    setError(null);
     poller.reset();
     uploader.reset();
 
@@ -83,10 +86,15 @@ export default function Home() {
       formData.append('video', videoFile);
       formData.append('start', range[0].toString());
       formData.append('end', range[1].toString());
-      formData.append('mode', mode);
+      formData.append('mode', mode === 'segments' ? 'segments' : 'normal');
+      formData.append('model', localStorage.getItem('settings') || user?.settings || 'base');
 
-      const res = await Api.post('/job/create', { type: 'transcribe' });
+      const res = await Api.post('/job/create', {
+        type: 'transcribe',
+        duration,
+      });
       const jobId = res.id || res._id || res.jobId;
+      if (!jobId) throw new Error('Server did not return a job id');
       formData.append('jobId', jobId);
 
       await uploader.upload('/video/transcribe', formData);
@@ -95,11 +103,19 @@ export default function Home() {
       setTextOriginal(resultText);
     } catch (error) {
       console.error(error);
+      setError(error instanceof Error ? error.message : 'Transcription failed');
     }
   };
 
-  const handleFixGrammar = () => {
-    // Grammar fix logic
+  const handleFixGrammar = async () => {
+    if (!text || isWorking) return;
+    try {
+      setError(null);
+      const result = await Api.post('/video/grammar', { text });
+      setText(result.correctedText || text);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Grammar correction failed');
+    }
   };
 
   const handleReset = () => {
@@ -238,7 +254,7 @@ export default function Home() {
                     value={mode}
                     onChange={(e) => setMode(e.target.value)}
                   >
-                    <option value="transcribe">Speech to Text</option>
+                    <option value="normal">Speech to Text</option>
                     <option value="segments">Segments</option>
                   </select>
                   <button
@@ -251,6 +267,7 @@ export default function Home() {
                 </div>
               </div>
             )}
+            {error && <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
           </div>
         </div>
 
