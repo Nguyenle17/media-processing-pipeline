@@ -7,7 +7,7 @@ import FileDropzone from '../components/common/FileDropzone';
 import ExportPanel from '../components/common/ExportPanel';
 import LanguagePicker from '../components/common/LanguagePicker';
 import { LANGUAGES } from '../constants/languages';
-import { UploadCloud, Sparkles, Languages } from 'lucide-react';
+import { UploadCloud, Sparkles, Languages, FileVideo, SlidersHorizontal, History } from 'lucide-react';
 import RangeSlider from 'react-range-slider-input';
 import 'react-range-slider-input/dist/style.css';
 import Api from '../api/Api';
@@ -125,7 +125,7 @@ export default function Translate() {
         .progress-sub {
           font-size: 0.85rem;
           color: #9ca3af;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: 'Inter', 'Segoe UI', sans-serif;
           text-align: center;
           max-width: 300px;
           line-height: 1.5;
@@ -156,16 +156,23 @@ export default function Translate() {
           border-radius: 999px;
           font-size: 0.75rem;
           color: #a5b4fc;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: 'Inter', 'Segoe UI', sans-serif;
         }
       `}</style>
 
       <div className="translate-hero">
+        <span className="vs-page-kicker"><Sparkles size={13} /> Assisted workflow</span>
         <h1 className="vs-section-title text-3xl font-bold mb-2 flex items-center gap-3">
           <Languages className="text-indigo-500" size={28} />
           Video Translation
         </h1>
         <p className="text-gray-400">Translate spoken audio in videos to multiple languages.</p>
+      </div>
+
+      <div className="vs-info-strip">
+        <div className="vs-info-item"><div className="vs-info-icon"><FileVideo size={15} /></div><div><strong>Upload video</strong><span>MP4, MOV, WEBM và nhiều định dạng khác</span></div></div>
+        <div className="vs-info-item"><div className="vs-info-icon"><SlidersHorizontal size={15} /></div><div><strong>Chọn khoảng thời gian</strong><span>Chỉ xử lý đoạn nội dung bạn cần</span></div></div>
+        <div className="vs-info-item"><div className="vs-info-icon"><History size={15} /></div><div><strong>Tự động lưu lịch sử</strong><span>Xem lại text gốc và bản dịch bất cứ lúc nào</span></div></div>
       </div>
 
       <div className="vs-studio-grid">

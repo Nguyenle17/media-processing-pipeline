@@ -112,7 +112,7 @@ export default function AdminRoleUpdate() {
     return (
         <div style={{ background: '#0a0a0f', minHeight: '100vh', fontFamily: "'Syne', sans-serif", color: '#fff' }}>
             <style>{`
-                .role-btn { padding: 5px 12px; border-radius: 7px; font-size: 11px; font-family: 'JetBrains Mono', monospace; cursor: pointer; border: 1px solid; transition: all 0.15s; font-weight: 500; }
+                .role-btn { padding: 5px 12px; border-radius: 7px; font-size: 11px; font-family: 'Inter', 'Segoe UI', sans-serif; cursor: pointer; border: 1px solid; transition: all 0.15s; font-weight: 500; }
                 .role-btn:hover { opacity: 0.8; transform: translateY(-1px); }
                 .role-btn.current { opacity: 0.4; cursor: default; transform: none !important; }
             `}</style>

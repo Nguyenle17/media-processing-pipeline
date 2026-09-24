@@ -5,7 +5,7 @@ import { useJobPolling } from '../hooks/useJobPolling';
 import ProgressRing from '../components/common/ProgressRing';
 import FileDropzone from '../components/common/FileDropzone';
 import ExportPanel from '../components/common/ExportPanel';
-import { RefreshCw, Wand2, ArrowRight, UploadCloud, Sparkles } from 'lucide-react';
+import { RefreshCw, Wand2, ArrowRight, UploadCloud, Sparkles, AudioWaveform, Languages, ShieldCheck } from 'lucide-react';
 import { MODELS } from '../constants/models';
 import RangeSlider from 'react-range-slider-input';
 import 'react-range-slider-input/dist/style.css';
@@ -133,7 +133,7 @@ export default function Home() {
         .hero-sub { font-size: 1.125rem; color: #9ca3af; margin-bottom: 2rem; max-width: 600px; margin-inline: auto; line-height: 1.6; }
         .cta-btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.85rem 1.75rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-radius: 0.75rem; font-weight: 600; text-decoration: none; transition: all 0.25s; box-shadow: 0 8px 24px rgba(99,102,241,0.3); border: none; cursor: pointer; }
         .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(99,102,241,0.45); }
-        .badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.85rem; background: rgba(99, 102, 241, 0.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); border-radius: 9999px; font-size: 0.8rem; font-weight: 500; margin-bottom: 1.5rem; font-family: 'JetBrains Mono', monospace; }
+        .badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.85rem; background: rgba(99, 102, 241, 0.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); border-radius: 9999px; font-size: 0.8rem; font-weight: 500; margin-bottom: 1.5rem; font-family: 'Inter', 'Segoe UI', sans-serif; }
         .badge-dot { width: 0.5rem; height: 0.5rem; background: #6366f1; border-radius: 50%; box-shadow: 0 0 8px #6366f1; animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
         .grid-bg { background-image: radial-gradient(#374151 1px, transparent 1px); background-size: 24px 24px; opacity: 0.2; }
@@ -159,7 +159,7 @@ export default function Home() {
         .progress-sub {
           font-size: 0.85rem;
           color: #9ca3af;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: 'Inter', 'Segoe UI', sans-serif;
           text-align: center;
           max-width: 300px;
           line-height: 1.5;
@@ -190,7 +190,7 @@ export default function Home() {
           border-radius: 999px;
           font-size: 0.75rem;
           color: #a5b4fc;
-          font-family: 'JetBrains Mono', monospace;
+          font-family: 'Inter', 'Segoe UI', sans-serif;
         }
       `}</style>
 
@@ -209,6 +209,24 @@ export default function Home() {
           <div><div className="stat-num">50+</div><div className="stat-lbl">Languages</div></div>
           <div><div className="stat-num">2x</div><div className="stat-lbl">Faster</div></div>
         </div>
+      </div>
+
+      <div className="vs-feature-grid">
+        <article className="vs-feature-card">
+          <div className="vs-feature-icon"><AudioWaveform size={18} /></div>
+          <h3 className="vs-feature-title">Speech to text</h3>
+          <p className="vs-feature-copy">Biến nội dung trong video thành transcript có cấu trúc, dễ đọc và dễ chỉnh sửa.</p>
+        </article>
+        <article className="vs-feature-card">
+          <div className="vs-feature-icon"><Languages size={18} /></div>
+          <h3 className="vs-feature-title">Translate đa ngôn ngữ</h3>
+          <p className="vs-feature-copy">Tách riêng text gốc và bản dịch để bạn kiểm tra, xuất file hoặc tái sử dụng.</p>
+        </article>
+        <article className="vs-feature-card">
+          <div className="vs-feature-icon"><ShieldCheck size={18} /></div>
+          <h3 className="vs-feature-title">Quy trình rõ ràng</h3>
+          <p className="vs-feature-copy">Theo dõi tiến trình xử lý, xem lại lịch sử và quản lý kết quả trong một nơi.</p>
+        </article>
       </div>
 
       <div id="studio" className="vs-studio-grid p-6 max-w-7xl mx-auto">

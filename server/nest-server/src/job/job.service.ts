@@ -20,6 +20,9 @@ import type {
 const DEFAULT_PAGE_SIZE = 8;
 const MAX_PAGE_SIZE = 100;
 
+const escapeRegex = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 @Injectable()
 export class JobService {
   constructor(
@@ -215,6 +218,7 @@ export class JobService {
     userId: string,
     page = 1,
     limit = DEFAULT_PAGE_SIZE,
+    search = '',
   ): Promise<PaginatedJobs> {
     const safePage = Math.max(Math.trunc(page) || 1, 1);
     const safeLimit = Math.min(
@@ -222,16 +226,20 @@ export class JobService {
       MAX_PAGE_SIZE,
     );
     const skip = (safePage - 1) * safeLimit;
+    const normalizedSearch = search.trim();
+    const filter = normalizedSearch
+      ? { userId, title: { $regex: escapeRegex(normalizedSearch), $options: 'i' } }
+      : { userId };
 
     const [jobs, total] = await Promise.all([
       this.jobModel
-        .find({ userId })
+        .find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(safeLimit)
         .lean<JobLean[]>()
         .exec(),
-      this.jobModel.countDocuments({ userId }).exec(),
+      this.jobModel.countDocuments(filter).exec(),
     ]);
 
     return {

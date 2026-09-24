@@ -55,7 +55,7 @@ export default function Header() {
                     background: rgba(10,10,15,0.85);
                     backdrop-filter: blur(16px);
                     border-bottom: 1px solid rgba(99,102,241,0.12);
-                    font-family: 'Syne', sans-serif;
+                    font-family: 'Inter', 'Segoe UI', sans-serif;
                 }
                 .header-inner {
                     max-width: 1200px; margin: 0 auto;
@@ -116,7 +116,7 @@ export default function Header() {
                     text-decoration: none; cursor: pointer;
                     transition: all 0.15s; border: none;
                     background: transparent; width: 100%;
-                    font-family: 'Syne', sans-serif; font-weight: 500;
+                    font-family: 'Inter', 'Segoe UI', sans-serif; font-weight: 500;
                 }
                 .dropdown-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
                 .dropdown-item.danger:hover { background: rgba(239,68,68,0.1); color: #f87171; }
@@ -131,7 +131,7 @@ export default function Header() {
                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 }
                 .dropdown-user-name { font-size: 13px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-                .dropdown-user-email { font-size: 11px; color: #52525b; margin-top: 2px; font-family: 'JetBrains Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                .dropdown-user-email { font-size: 11px; color: #52525b; margin-top: 2px; font-family: 'Inter', 'Segoe UI', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
                 .auth-btns { display: flex; gap: 8px; align-items: center; }
                 
                 .mobile-menu-btn {

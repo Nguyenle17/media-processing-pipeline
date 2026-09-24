@@ -54,10 +54,16 @@ export class JobController {
   async getJobsByUser(
     @Query('page') page = 1,
     @Query('limit') limit = 8,
+    @Query('search') search = '',
     @Req() req: AuthenticatedRequest,
   ) {
     const userId = req.user.userId;
-    return this.jobService.getJobsByUser(userId, Number(page), Number(limit));
+    return this.jobService.getJobsByUser(
+      userId,
+      Number(page),
+      Number(limit),
+      search,
+    );
   }
 
   @Get('chunks')

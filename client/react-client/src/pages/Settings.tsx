@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { MODELS } from '../constants/models';
-import { Save, Server, Zap, Target, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Save, Server, Zap, Target, CheckCircle2, AlertCircle, UserRound, Gauge, CircleHelp } from 'lucide-react';
 import Api from '../api/Api';
 
 interface DotProps {
@@ -75,6 +75,12 @@ export default function Settings() {
           <Server className="text-indigo-500" /> AI Settings
         </h1>
         <p className="text-gray-400">Configure your default AI models and processing preferences.</p>
+      </div>
+
+      <div className="vs-info-strip">
+        <div className="vs-info-item"><div className="vs-info-icon"><UserRound size={15} /></div><div><strong>{user?.name || 'Your workspace'}</strong><span>{user?.email || 'Personal media workspace'}</span></div></div>
+        <div className="vs-info-item"><div className="vs-info-icon"><Gauge size={15} /></div><div><strong>Model hiện tại</strong><span>{MODELS.find((model) => model.id === selectedModel)?.label || 'Base'}</span></div></div>
+        <div className="vs-info-item"><div className="vs-info-icon"><CircleHelp size={15} /></div><div><strong>Cần trợ giúp?</strong><span>Model lớn chính xác hơn, model nhỏ xử lý nhanh hơn</span></div></div>
       </div>
 
       <div className="vs-panel">
