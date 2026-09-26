@@ -141,8 +141,8 @@ export default function Login() {
                         type="submit"
                         disabled={loading || googleLoading}
                         style={{
-                            width: '100%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff',
-                            border: 'none', borderRadius: '12px', padding: '12px', fontSize: '14px', fontWeight: 500,
+                            width: '100%', background: '#6366f1', color: '#fff',
+                            border: 'none', borderRadius: '6px', padding: '12px', fontSize: '14px', fontWeight: 500,
                             cursor: (loading || googleLoading) ? 'not-allowed' : 'pointer', marginTop: '8px',
                             opacity: (loading || googleLoading) ? 0.7 : 1
                         }}

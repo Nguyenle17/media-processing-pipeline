@@ -135,14 +135,14 @@ export default function Translate() {
           max-width: 320px;
           height: 6px;
           background: rgba(99,102,241,0.15);
-          border-radius: 999px;
+          border-radius: 4px;
           overflow: hidden;
           margin-top: 0.25rem;
         }
         .progress-bar-fill {
           height: 100%;
-          background: linear-gradient(90deg, #6366f1, #a855f7);
-          border-radius: 999px;
+          background: #6366f1;
+          border-radius: 4px;
           transition: width 0.4s ease;
           box-shadow: 0 0 12px rgba(99,102,241,0.6);
         }
@@ -153,7 +153,7 @@ export default function Translate() {
           padding: 0.3rem 0.75rem;
           background: rgba(99,102,241,0.1);
           border: 1px solid rgba(99,102,241,0.3);
-          border-radius: 999px;
+          border-radius: 4px;
           font-size: 0.75rem;
           color: #a5b4fc;
           font-family: 'Inter', 'Segoe UI', sans-serif;

@@ -52,9 +52,8 @@ export default function Header() {
             <style>{`
                 .header-nav {
                     position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-                    background: rgba(10,10,15,0.85);
-                    backdrop-filter: blur(16px);
-                    border-bottom: 1px solid rgba(99,102,241,0.12);
+                    background: #0a0a0f;
+                    border-bottom: 1px solid #242831;
                     font-family: 'Inter', 'Segoe UI', sans-serif;
                 }
                 .header-inner {
@@ -68,16 +67,14 @@ export default function Header() {
                 }
                 .logo-icon {
                     width: 32px; height: 32px;
-                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-                    border-radius: 8px;
+                    background: #6366f1;
+                    border-radius: 4px;
                     display: flex; align-items: center; justify-content: center;
                     font-size: 14px;
                 }
                 .logo-text {
                     font-size: 18px; font-weight: 800;
-                    background: linear-gradient(135deg, #a5b4fc, #e879f9);
-                    -webkit-background-clip: text; background-clip: text;
-                    color: transparent;
+                    color: #f4f4f5;
                 }
                 .nav-links {
                     display: none; align-items: center; gap: 4px;
@@ -87,7 +84,7 @@ export default function Header() {
                     .nav-links { display: flex; }
                 }
                 .nav-link {
-                    padding: 6px 12px; border-radius: 8px;
+                    padding: 6px 12px; border-radius: 4px;
                     font-size: 13px; font-weight: 600;
                     color: #71717a; text-decoration: none;
                     transition: all 0.15s; white-space: nowrap;
@@ -96,15 +93,15 @@ export default function Header() {
                 .nav-link:hover { color: #fff; background: rgba(255,255,255,0.06); }
                 .nav-link.active {
                     color: #a5b4fc;
-                    background: rgba(99,102,241,0.15);
-                    border: 1px solid rgba(99,102,241,0.25);
+                    background: transparent;
+                    border-bottom: 1px solid #6366f1;
                 }
                 .dropdown {
                     position: absolute; top: calc(100% + 8px); right: 0;
                     width: 200px;
                     background: #111118;
                     border: 1px solid rgba(99,102,241,0.2);
-                    border-radius: 12px; padding: 6px;
+                    border-radius: 6px; padding: 6px;
                     box-shadow: 0 16px 48px rgba(0,0,0,0.5);
                     animation: dropIn 0.15s ease;
                 }

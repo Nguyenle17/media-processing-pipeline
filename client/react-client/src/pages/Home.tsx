@@ -5,7 +5,7 @@ import { useJobPolling } from '../hooks/useJobPolling';
 import ProgressRing from '../components/common/ProgressRing';
 import FileDropzone from '../components/common/FileDropzone';
 import ExportPanel from '../components/common/ExportPanel';
-import { RefreshCw, Wand2, ArrowRight, UploadCloud, Sparkles, AudioWaveform, Languages, ShieldCheck } from 'lucide-react';
+import { RefreshCw, Wand2, UploadCloud } from 'lucide-react';
 import { MODELS } from '../constants/models';
 import RangeSlider from 'react-range-slider-input';
 import 'react-range-slider-input/dist/style.css';
@@ -127,16 +127,13 @@ export default function Home() {
   return (
     <div className="home-container fade-in">
       <style>{`
-        .hero-section { text-align: center; padding: 4rem 2rem; background: linear-gradient(to bottom, #0a0a0f, #13131f); position: relative; overflow: hidden; }
-        .hero-title { font-size: 3.5rem; font-family: 'Syne', sans-serif; font-weight: 700; margin-bottom: 1rem; color: #fff; letter-spacing: -0.02em; }
-        .accent { background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero-section { text-align: center; padding: 4rem 2rem 3.5rem; background: #0a0a0f; position: relative; overflow: hidden; border-bottom: 1px solid #242831; }
+        .hero-title { font-size: 3.5rem; font-family: 'Syne', sans-serif; font-weight: 700; margin-bottom: 1rem; color: #fff; letter-spacing: -0.03em; }
+        .accent { color: #818cf8; }
         .hero-sub { font-size: 1.125rem; color: #9ca3af; margin-bottom: 2rem; max-width: 600px; margin-inline: auto; line-height: 1.6; }
-        .cta-btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.85rem 1.75rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-radius: 0.75rem; font-weight: 600; text-decoration: none; transition: all 0.25s; box-shadow: 0 8px 24px rgba(99,102,241,0.3); border: none; cursor: pointer; }
-        .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(99,102,241,0.45); }
-        .badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.85rem; background: rgba(99, 102, 241, 0.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); border-radius: 9999px; font-size: 0.8rem; font-weight: 500; margin-bottom: 1.5rem; font-family: 'Inter', 'Segoe UI', sans-serif; }
-        .badge-dot { width: 0.5rem; height: 0.5rem; background: #6366f1; border-radius: 50%; box-shadow: 0 0 8px #6366f1; animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-        .grid-bg { background-image: radial-gradient(#374151 1px, transparent 1px); background-size: 24px 24px; opacity: 0.2; }
+        .cta-btn { display: inline-flex; align-items: center; padding: 0.75rem 1.35rem; background: #6366f1; color: white; border-radius: 0.35rem; font-weight: 600; text-decoration: none; transition: background 0.2s; border: none; cursor: pointer; }
+        .cta-btn:hover { background: #7477f2; }
+        .grid-bg { display: none; }
         .stats-row { display: flex; justify-content: center; gap: 4rem; margin-top: 3.5rem; }
         .stat-num { font-size: 2rem; font-weight: 700; color: #fff; font-family: 'Syne', sans-serif; }
         .stat-lbl { color: #9ca3af; font-size: 0.85rem; margin-top: 0.25rem; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -175,7 +172,7 @@ export default function Home() {
         }
         .progress-bar-fill {
           height: 100%;
-          background: linear-gradient(90deg, #6366f1, #a855f7);
+          background: #6366f1;
           border-radius: 999px;
           transition: width 0.4s ease;
           box-shadow: 0 0 12px rgba(99,102,241,0.6);
@@ -196,13 +193,10 @@ export default function Home() {
 
       <div className="hero-section">
         <div className="absolute inset-0 grid-bg -z-10"></div>
-        <div className="badge">
-          <span className="badge-dot"></span> Next-gen processing
-        </div>
         <h1 className="hero-title">Media AI <span className="accent">Studio</span></h1>
         <p className="hero-sub">Transcribe, translate, and synthesize media with high accuracy using state-of-the-art AI models.</p>
         <button className="cta-btn" onClick={() => document.getElementById('studio')?.scrollIntoView({ behavior: 'smooth' })}>
-          Get Started <ArrowRight size={18} />
+          Get Started
         </button>
         <div className="stats-row">
           <div><div className="stat-num">99%</div><div className="stat-lbl">Accuracy</div></div>
@@ -213,17 +207,14 @@ export default function Home() {
 
       <div className="vs-feature-grid">
         <article className="vs-feature-card">
-          <div className="vs-feature-icon"><AudioWaveform size={18} /></div>
           <h3 className="vs-feature-title">Speech to text</h3>
           <p className="vs-feature-copy">Biến nội dung trong video thành transcript có cấu trúc, dễ đọc và dễ chỉnh sửa.</p>
         </article>
         <article className="vs-feature-card">
-          <div className="vs-feature-icon"><Languages size={18} /></div>
           <h3 className="vs-feature-title">Translate đa ngôn ngữ</h3>
           <p className="vs-feature-copy">Tách riêng text gốc và bản dịch để bạn kiểm tra, xuất file hoặc tái sử dụng.</p>
         </article>
         <article className="vs-feature-card">
-          <div className="vs-feature-icon"><ShieldCheck size={18} /></div>
           <h3 className="vs-feature-title">Quy trình rõ ràng</h3>
           <p className="vs-feature-copy">Theo dõi tiến trình xử lý, xem lại lịch sử và quản lý kết quả trong một nơi.</p>
         </article>
@@ -335,7 +326,7 @@ export default function Home() {
                     </>
                   ) : (
                     <>
-                      <Sparkles size={12} /> {poller.status || 'Processing'}
+                      {poller.status || 'Processing'}
                     </>
                   )}
                 </div>

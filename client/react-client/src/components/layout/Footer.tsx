@@ -13,12 +13,12 @@ export default function Footer() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <div style={{
-              width: 28, height: 28, borderRadius: 7,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              width: 28, height: 28, borderRadius: 4,
+              background: '#6366f1',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12,
             }}>▶</div>
-            <span style={{ fontSize: 16, fontWeight: 800, background: 'linear-gradient(135deg, #a5b4fc, #e879f9)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>VideoSub</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: '#f4f4f5' }}>VideoSub</span>
           </div>
           <p style={{ fontSize: 12, color: '#3f3f46', maxWidth: 240, lineHeight: 1.6, fontFamily: "'JetBrains Mono', monospace" }}>
             AI-powered video transcription and translation platform.

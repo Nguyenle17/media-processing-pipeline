@@ -98,7 +98,7 @@ export default function AdminDashboard() {
                     background: rgba(255,255,255,0.04);
                     backdrop-filter: blur(12px);
                     border: 1px solid rgba(255,255,255,0.08);
-                    border-radius: 20px;
+                    border-radius: 8px;
                     padding: 22px;
                     transition: all 0.25s ease;
                     box-shadow: 0 8px 30px rgba(0,0,0,0.25);
