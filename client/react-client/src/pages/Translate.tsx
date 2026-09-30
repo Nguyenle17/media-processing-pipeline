@@ -13,7 +13,7 @@ import 'react-range-slider-input/dist/style.css';
 import Api from '../api/Api';
 
 export default function Translate() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const uploader = useUploadWithProgress();
   const poller = useJobPolling();
 
@@ -78,6 +78,11 @@ export default function Translate() {
       formData.append('video', videoFile);
       formData.append('start', range[0].toString());
       formData.append('end', range[1].toString());
+      formData.append('mode', 'normal');
+      formData.append(
+        'model',
+        localStorage.getItem('settings') || user?.settings || 'base',
+      );
       const res = await Api.post('/job/create', {
         type: 'translate',
         title: videoFile.name,

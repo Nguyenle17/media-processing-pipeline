@@ -33,12 +33,25 @@ export interface TranslationHistoryResponse {
 }
 
 export const translationHistoryApi = {
-  list(page: number, limit = 8, search = ''): Promise<TranslationHistoryResponse> {
-    const params = new URLSearchParams({ page: String(page), limit: String(limit), search: search.trim() });
-    return Api.get(`/job/user?${params.toString()}`);
+  list(
+    page: number,
+    limit = 8,
+    search = '',
+    type?: 'transcribe' | 'translate',
+  ): Promise<TranslationHistoryResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      search: search.trim(),
+    });
+    if (type) params.set('type', type);
+    return Api.get(`/job/history?${params.toString()}`);
   },
   chunks(jobId: string): Promise<TranslationChunk[]> {
     return Api.get(`/job/chunks?jobId=${encodeURIComponent(jobId)}`);
+  },
+  detail(jobId: string): Promise<{ job: TranslationHistoryItem; chunks: TranslationChunk[] }> {
+    return Api.get(`/job/history/${encodeURIComponent(jobId)}`);
   },
   remove(jobId: string): Promise<unknown> {
     return Api.delete(`/job/delete?jobId=${encodeURIComponent(jobId)}`);

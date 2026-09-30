@@ -2,11 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { FileService } from '../file/file.service';
 import { JobService } from '../job/job.service';
+import { UsersService } from '../users/users.service';
 import ffmpeg from 'fluent-ffmpeg';
 import * as path from 'path';
 
@@ -15,17 +17,25 @@ export class VideoService {
   constructor(
     private fileService: FileService,
     private jobService: JobService,
+    @Optional() private usersService: UsersService,
     @InjectQueue('video') private videoQueue: Queue,
   ) {}
 
-  async transcribeVideo(file: Express.Multer.File, data: any) {
-    const { jobId, mode = 'normal', model = 'tiny' } = data;
+  async transcribeVideo(file: Express.Multer.File, data: any, userId: string) {
+    const { jobId, mode = 'normal' } = data;
     if (!jobId) throw new BadRequestException('jobId is required');
-    if (!['normal', 'segments'].includes(mode)) {
-      throw new BadRequestException('mode must be normal or segments');
+    const job = await this.jobService.getJobByUser(jobId, userId);
+    if (!job) throw new NotFoundException('Job not found');
+    if (job.status !== 'waiting') {
+      throw new BadRequestException('Job is already being processed');
     }
+    const user = await this.usersService.findById(userId);
+    const model = user?.selectedModel || 'base';
     if (!['tiny', 'base', 'small', 'medium', 'large'].includes(model)) {
       throw new BadRequestException('Unsupported transcription model');
+    }
+    if (!['normal', 'segments'].includes(mode)) {
+      throw new BadRequestException('mode must be normal or segments');
     }
     const start = parseFloat(data.start) || 0;
 
@@ -40,9 +50,10 @@ export class VideoService {
       throw new BadRequestException('Unable to read video metadata');
     }
     const requestedEnd = Number.parseFloat(data.end);
-    const end = Number.isFinite(requestedEnd) && requestedEnd > 0
-      ? Math.min(requestedEnd, videoDuration)
-      : videoDuration;
+    const end =
+      Number.isFinite(requestedEnd) && requestedEnd > 0
+        ? Math.min(requestedEnd, videoDuration)
+        : videoDuration;
 
     if (start >= end) {
       await this.fileService.deleteFile(inputPath, { ignoreMissing: true });
@@ -53,39 +64,82 @@ export class VideoService {
     const totalChunks = Math.ceil((end - start) / chunkDuration);
     await this.jobService.updateTotalChunks(jobId, totalChunks);
 
-    for (let i = 0; i < totalChunks; i++) {
-      const chunkStart = start + i * chunkDuration;
-      const chunkEnd = Math.min(chunkStart + chunkDuration, end);
-      const chunkName = `${jobId}_chunk_${i}.mp4`;
-      const chunkPath = path.join(process.cwd(), 'uploads', chunkName);
-
-      await this.splitVideo(fullPath, chunkPath, chunkStart, chunkDuration);
-      await this.videoQueue.add('TranscriptVideo', {
-        mode,
-        model,
-        index: i,
-        video: chunkName,
-        jobId,
-        start: chunkStart,
-        end: chunkEnd,
+    const chunkNames: string[] = [];
+    try {
+      const chunks = Array.from({ length: totalChunks }, (_, i) => {
+        const chunkStart = start + i * chunkDuration;
+        const chunkEnd = Math.min(chunkStart + chunkDuration, end);
+        const chunkName = `${jobId}_chunk_${i}.mp4`;
+        const chunkPath = path.join(process.cwd(), 'uploads', chunkName);
+        chunkNames.push(chunkName);
+        return { chunkStart, chunkEnd, chunkName, chunkPath, index: i };
       });
-    }
 
-    await this.fileService.deleteFile(inputPath, { ignoreMissing: true });
-    return { message: 'Video split and queued', totalChunks };
+      await Promise.all(
+        chunks.map(({ chunkPath, chunkStart, chunkEnd }) =>
+          this.splitVideo(
+            fullPath,
+            chunkPath,
+            chunkStart,
+            chunkEnd - chunkStart,
+          ),
+        ),
+      );
+      await Promise.all(
+        chunks.map(({ chunkStart, chunkEnd, chunkName, index }) =>
+          this.videoQueue.add('TranscriptVideo', {
+            mode,
+            model,
+            index,
+            video: chunkName,
+            jobId,
+            start: chunkStart,
+            end: chunkEnd,
+          }),
+        ),
+      );
+
+      await this.fileService.deleteFile(inputPath, { ignoreMissing: true });
+      return { message: 'Video split and queued', totalChunks };
+    } catch (error) {
+      await Promise.all(
+        [inputPath, ...chunkNames].map((filename) =>
+          this.fileService.deleteFile(filename, { ignoreMissing: true }),
+        ),
+      );
+      await this.jobService.markJobFailed(
+        jobId,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
   }
 
-  async translateVideo(data: { jobId: string; target_lang: string }) {
-    const job = await this.jobService.getJobById(data.jobId);
+  async translateVideo(
+    data: { jobId: string; target_lang: string },
+    userId: string,
+  ) {
+    const job = await this.jobService.getJobByUser(data.jobId, userId);
     if (!job) throw new NotFoundException('Job not found');
     if (!job.transcriptText)
       throw new BadRequestException('Transcript chưa sẵn sàng');
+    if (job.status !== 'completed')
+      throw new BadRequestException('Job chưa sẵn sàng để dịch');
 
-    await this.videoQueue.add('TranslateVideo', {
-      jobId: data.jobId,
-      text: job.transcriptText,
-      target_lang: data.target_lang || 'en',
-    });
+    await this.jobService.markTranslating(data.jobId);
+    try {
+      await this.videoQueue.add('TranslateVideo', {
+        jobId: data.jobId,
+        text: job.transcriptText,
+        target_lang: data.target_lang || 'en',
+      });
+    } catch (error) {
+      await this.jobService.markJobFailed(
+        data.jobId,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
     return { message: 'Translation queued' };
   }
 

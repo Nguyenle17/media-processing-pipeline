@@ -40,8 +40,10 @@ export default function Settings() {
     const fetchSettings = async () => {
       try {
         const res = await Api.get('/users/settings');
-        if (res?.selectedModel || res?.model) {
-          setSelectedModel(res.selectedModel || res.model);
+        const model = res?.selectedModel || res?.model;
+        if (MODELS.some((item) => item.id === model)) {
+          setSelectedModel(model);
+          localStorage.setItem('settings', model);
         }
       } catch (err) {
         console.error("Failed to load settings", err);
@@ -56,8 +58,10 @@ export default function Settings() {
     setSuccess(false);
     setError(null);
     try {
-      await Api.put('/users/settings', { model: selectedModel });
-      localStorage.setItem('settings', selectedModel);
+      const saved = await Api.put('/users/settings', { model: selectedModel });
+      const persistedModel = saved?.selectedModel || selectedModel;
+      setSelectedModel(persistedModel);
+      localStorage.setItem('settings', persistedModel);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { JobService } from './job.service';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
+import type { JobHistoryType } from './type/JobType';
 
 type AuthenticatedRequest = Request & {
   user: {
@@ -41,13 +42,44 @@ export class JobController {
   }
 
   @Get('process/:jobId')
-  async getProcess(@Param('jobId') jobId: string) {
-    return this.jobService.getProcess(jobId);
+  async getProcess(
+    @Param('jobId') jobId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.jobService.getProcess(jobId, req.user.userId);
   }
 
   @Get('result/:jobId')
-  async getJobResult(@Param('jobId') jobId: string) {
-    return this.jobService.getJobResult(jobId);
+  async getJobResult(
+    @Param('jobId') jobId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.jobService.getJobResult(jobId, req.user.userId);
+  }
+
+  @Get('history')
+  async getHistory(
+    @Query('page') page = 1,
+    @Query('limit') limit = 8,
+    @Query('search') search = '',
+    @Query('type') type: JobHistoryType | undefined,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.jobService.getJobsByUser(
+      req.user.userId,
+      Number(page),
+      Number(limit),
+      search,
+      type,
+    );
+  }
+
+  @Get('history/:jobId')
+  async getHistoryDetail(
+    @Param('jobId') jobId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.jobService.getHistoryDetail(jobId, req.user.userId);
   }
 
   @Get('user')
@@ -55,6 +87,7 @@ export class JobController {
     @Query('page') page = 1,
     @Query('limit') limit = 8,
     @Query('search') search = '',
+    @Query('type') type: JobHistoryType | undefined,
     @Req() req: AuthenticatedRequest,
   ) {
     const userId = req.user.userId;
@@ -63,16 +96,17 @@ export class JobController {
       Number(page),
       Number(limit),
       search,
+      type,
     );
   }
 
   @Get('chunks')
-  async getChunks(@Query('jobId') jobId: string) {
-    return this.jobService.getChunks(jobId);
+  async getChunks(@Query('jobId') jobId: string, @Req() req: AuthenticatedRequest) {
+    return this.jobService.getChunks(jobId, req.user.userId);
   }
 
   @Delete('delete')
-  async deleteJob(@Query('jobId') jobId: string) {
-    return this.jobService.deleteJob(jobId);
+  async deleteJob(@Query('jobId') jobId: string, @Req() req: AuthenticatedRequest) {
+    return this.jobService.deleteJob(jobId, req.user.userId);
   }
 }

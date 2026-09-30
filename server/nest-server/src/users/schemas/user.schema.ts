@@ -17,7 +17,10 @@ export class User {
   @Prop({ required: true, default: 'user' })
   role?: string;
 
-  @Prop({ default: 'base' })
+  @Prop({
+    default: 'base',
+    enum: ['tiny', 'base', 'small', 'medium', 'large'],
+  })
   selectedModel?: string;
 
   @Prop()

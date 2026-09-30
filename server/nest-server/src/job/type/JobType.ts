@@ -4,12 +4,14 @@ import type { Chunk } from '../schemas/chunk.schema';
 
 export type JobDoc = HydratedDocument<Job>;
 export type JobType = 'transcribe' | 'translate';
+export type JobHistoryType = JobType;
 export type JobStatus = Job['status'];
 
 export type JobLean = Job & {
   _id: Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
+  resultText?: string;
 };
 export type ChunkLean = Chunk & { _id: Types.ObjectId };
 
@@ -37,9 +39,15 @@ export type JobResult =
     };
 
 export interface PaginatedJobs {
-  jobs: JobLean[];
+  jobs: JobHistoryItem[];
   total: number;
   page: number;
   limit: number;
   totalPages: number;
 }
+
+export type JobHistoryItem = Omit<JobLean, 'transcriptText' | 'translatedText'> & {
+  resultText: string;
+  transcriptText?: string;
+  translatedText?: string;
+};

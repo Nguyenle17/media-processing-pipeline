@@ -7,11 +7,13 @@ import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bullmq';
 import { VideoProcessor } from './video.processor';
 import { JwtStrategy } from '../auth/jwt.strategy';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
     JobModule,
     FileModule,
+    UsersModule,
     HttpModule,
     BullModule.registerQueue({
       name: 'video',

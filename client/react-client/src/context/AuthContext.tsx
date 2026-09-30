@@ -2,6 +2,12 @@ import { createContext, useState, useEffect, useRef, ReactNode } from "react";
 import { jwtDecode } from "jwt-decode";
 import Api from "../api/Api";
 
+const DEFAULT_MODEL = 'base';
+const SUPPORTED_MODELS = new Set(['tiny', 'base', 'small', 'medium', 'large']);
+
+const normalizeModel = (model: unknown): string =>
+    typeof model === 'string' && SUPPORTED_MODELS.has(model) ? model : DEFAULT_MODEL;
+
 export interface JwtPayload {
     exp?: number;
     name?: string;
@@ -26,6 +32,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [loading, setLoading] = useState(true);
     const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+    const syncSettings = async (fallback?: unknown) => {
+        try {
+            const result = await Api.get('/users/settings');
+            const model = normalizeModel(result?.selectedModel || result?.model);
+            localStorage.setItem('settings', model);
+            setUser((current) => current ? { ...current, settings: model } : current);
+        } catch {
+            const model = normalizeModel(fallback);
+            localStorage.setItem('settings', model);
+            setUser((current) => current ? { ...current, settings: model } : current);
+        }
+    };
+
     const scheduleRefresh = (accessToken: string) => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
         try {
@@ -46,6 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             Api.setToken(newToken);
             const decoded = jwtDecode<JwtPayload>(newToken);
             setUser(decoded);
+            await syncSettings(decoded.settings);
             scheduleRefresh(newToken);
         } catch {
             setToken(null); setUser(null); Api.setToken(null);
@@ -63,7 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     } else {
                         setUser(decoded);
                         Api.setToken(token);
-                        localStorage.setItem("settings", decoded.settings || 'tiny');
+                        await syncSettings(decoded.settings);
                         scheduleRefresh(token);
                     }
                 } catch {
@@ -82,8 +102,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
             const decoded = jwtDecode<JwtPayload>(newToken);
             localStorage.setItem("token", newToken);
+            localStorage.removeItem("settings");
             setToken(newToken); Api.setToken(newToken);
-            setUser(decoded); scheduleRefresh(newToken);
+            setUser(decoded);
+            void syncSettings(decoded.settings);
+            scheduleRefresh(newToken);
         } catch (error) {
             console.error("Invalid access token:", error);
             localStorage.removeItem("token");

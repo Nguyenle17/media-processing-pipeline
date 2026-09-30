@@ -43,11 +43,16 @@ export default function History() {
 
   const openJob = async (job: TranslationHistoryItem) => {
     setSelectedJob(job);
+    setMode(job.type === 'translate' ? 'translated' : 'original');
     if (job.status !== 'completed' || job.chunks) return;
     try {
       setDetailLoading(true);
-      const chunks = await translationHistoryApi.chunks(job._id);
-      setSelectedJob({ ...job, chunks: Array.isArray(chunks) ? chunks : [] });
+      const detail = await translationHistoryApi.detail(job._id);
+      setSelectedJob({
+        ...job,
+        ...(detail.job || {}),
+        chunks: Array.isArray(detail.chunks) ? detail.chunks : [],
+      });
     } catch { /* Text fields from /job/user remain available. */ }
     finally { setDetailLoading(false); }
   };
@@ -95,9 +100,9 @@ export default function History() {
 
         <section className="history-detail vs-panel flex flex-col">
           {!selectedJob ? <div className="flex flex-col items-center justify-center h-full text-gray-500"><FileText size={48} className="mb-4 opacity-20" /><p>Chọn một bản ghi để xem nội dung</p></div> : <>
-            <div className="vs-panel-header flex justify-between items-start gap-4"><div className="min-w-0"><h2 className="vs-panel-title text-lg truncate">{selectedJob.title || 'Translation details'}</h2><div className="text-xs text-gray-500 mt-2">{formatDate(selectedJob.createdAt)} {selectedJob.targetLang ? `• ${selectedJob.targetLang}` : ''}</div></div>{selectedJob.status === 'completed' && <div className="history-tabs shrink-0"><button className={mode === 'original' ? 'active' : ''} onClick={() => setMode('original')}>Text gốc</button><button className={mode === 'translated' ? 'active' : ''} onClick={() => setMode('translated')}>Text translate</button></div>}</div>
+            <div className="vs-panel-header flex justify-between items-start gap-4"><div className="min-w-0"><h2 className="vs-panel-title text-lg truncate">{selectedJob.title || 'Translation details'}</h2><div className="text-xs text-gray-500 mt-2">{formatDate(selectedJob.createdAt)} {selectedJob.targetLang ? `• ${selectedJob.targetLang}` : ''}</div></div>{selectedJob.status === 'completed' && <div className="history-tabs shrink-0"><button className={mode === 'original' ? 'active' : ''} onClick={() => setMode('original')}>Text gốc</button>{selectedJob.type === 'translate' && <button className={mode === 'translated' ? 'active' : ''} onClick={() => setMode('translated')}>Text translate</button>}</div>}</div>
             <div className="vs-panel-body flex-1 overflow-y-auto vs-scroll bg-[#0a0a0f]">
-              {selectedJob.status === 'processing' || selectedJob.status === 'translating' || selectedJob.status === 'waiting' ? <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-4"><Loader2 size={42} className="animate-spin text-indigo-500" /><p>Đang xử lý bản translate...</p></div> : selectedJob.status === 'failed' ? <div className="flex flex-col items-center justify-center h-full text-red-400 gap-4"><AlertCircle size={42} /><p>{selectedJob.error || 'Translate thất bại.'}</p></div> : detailLoading ? <div className="flex justify-center p-8"><LoadingSpinner size={28} color="#6366f1" /></div> : <div className="history-content p-4"><div className="history-content-label"><span>{mode === 'original' ? 'Original text' : 'Translated text'}</span><button className="vs-btn vs-btn--ghost !p-2" onClick={copyText} title="Copy">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div>{selectedJob.chunks?.length ? <div className="space-y-3">{selectedJob.chunks.map((chunk) => <div key={chunk.index} className="history-chunk"><span>#{chunk.index + 1}</span><p>{mode === 'original' ? chunk.transcript || '—' : chunk.translation || '—'}</p></div>)}</div> : <div className="whitespace-pre-wrap text-gray-200 leading-8">{selectedText || 'Chưa có nội dung.'}</div>}</div>}
+              {selectedJob.status === 'processing' || selectedJob.status === 'translating' || selectedJob.status === 'waiting' ? <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-4"><Loader2 size={42} className="animate-spin text-indigo-500" /><p>Đang xử lý bản translate...</p></div> : selectedJob.status === 'failed' ? <div className="flex flex-col items-center justify-center h-full text-red-400 gap-4"><AlertCircle size={42} /><p>{selectedJob.error || 'Translate thất bại.'}</p></div> : detailLoading ? <div className="flex justify-center p-8"><LoadingSpinner size={28} color="#6366f1" /></div> : <div className="history-content p-4"><div className="history-content-label"><span>{mode === 'original' ? 'Original text' : 'Translated text'}</span><button className="vs-btn vs-btn--ghost !p-2" onClick={copyText} title="Copy">{copied ? <Check size={14} /> : <Clipboard size={14} />}</button></div>{mode === 'translated' && selectedJob.translatedText ? <div className="whitespace-pre-wrap text-gray-200 leading-8">{selectedJob.translatedText}</div> : selectedJob.chunks?.length ? <div className="space-y-3">{selectedJob.chunks.map((chunk) => <div key={chunk.index} className="history-chunk"><span>#{chunk.index + 1}</span><p>{chunk.transcript || '—'}</p></div>)}</div> : <div className="whitespace-pre-wrap text-gray-200 leading-8">{selectedText || 'Chưa có nội dung.'}</div>}</div>}
             </div>
             {selectedJob.status === 'completed' && <div className="p-4 border-t border-gray-800 flex justify-end"><button className="vs-btn vs-btn--ghost" onClick={() => downloadByFormat(selectedText, mode === 'original' ? 'original-text' : 'translated-text', 'txt')}><Download size={15} /> Tải {mode === 'original' ? 'text gốc' : 'bản translate'}</button></div>}
           </>}

@@ -10,6 +10,7 @@ import { Chunk } from './schemas/chunk.schema';
 import type {
   ChunkLean,
   JobDoc,
+  JobHistoryType,
   JobLean,
   JobProgressResult,
   JobResult,
@@ -105,7 +106,7 @@ export class JobService {
 
     return this.jobModel
       .findOneAndUpdate(
-        { _id: jobId, status: { $nin: ['completed', 'translating'] } },
+        { _id: jobId, status: { $in: ['waiting', 'processing'] } },
         update,
         { returnDocument: 'after' },
       )
@@ -136,7 +137,7 @@ export class JobService {
       .findOneAndUpdate(
         {
           _id: jobId,
-          status: { $nin: ['completed', 'translating'] },
+          status: { $in: ['waiting', 'processing'] },
           totalChunks: { $gt: 0 },
           $expr: { $gte: ['$processedChunks', '$totalChunks'] },
         },
@@ -154,7 +155,7 @@ export class JobService {
 
     const updated = await this.jobModel
       .findOneAndUpdate(
-        { _id: jobId, status: { $ne: 'completed' } },
+        { _id: jobId, status: { $in: ['translating'] } },
         { $set: { status: 'completed', translatedText } },
         { returnDocument: 'after' },
       )
@@ -175,10 +176,13 @@ export class JobService {
       .exec();
   }
 
-  async getProcess(jobId: string): Promise<JobProgressResult> {
+  async getProcess(jobId: string, userId?: string): Promise<JobProgressResult> {
     if (!isValidObjectId(jobId)) return { status: 'not_found' };
 
-    const job = await this.jobModel.findById(jobId).lean<JobLean>().exec();
+    const job = await this.jobModel
+      .findOne(this.buildUserJobFilter(jobId, userId))
+      .lean<JobLean>()
+      .exec();
     if (!job) return { status: 'not_found' };
 
     const pct =
@@ -195,15 +199,38 @@ export class JobService {
     };
   }
 
+  async markTranslating(jobId: string): Promise<JobDoc | null> {
+    this.assertValidId(jobId);
+    return this.jobModel
+      .findOneAndUpdate(
+        { _id: jobId, status: 'completed' },
+        { $set: { status: 'translating' } },
+        { returnDocument: 'after' },
+      )
+      .exec();
+  }
+
+  private buildUserJobFilter(jobId: string, userId?: string) {
+    return userId ? { _id: jobId, userId } : { _id: jobId };
+  }
+
   async getJobById(jobId: string): Promise<JobDoc | null> {
     this.assertValidId(jobId);
     return this.jobModel.findById(jobId).exec();
   }
 
-  async getJobResult(jobId: string): Promise<JobResult> {
+  async getJobByUser(jobId: string, userId: string): Promise<JobDoc | null> {
+    this.assertValidId(jobId);
+    return this.jobModel.findOne({ _id: jobId, userId }).exec();
+  }
+
+  async getJobResult(jobId: string, userId?: string): Promise<JobResult> {
     if (!isValidObjectId(jobId)) return { status: 'not_found' };
 
-    const job = await this.jobModel.findById(jobId).lean<JobLean>().exec();
+    const job = await this.jobModel
+      .findOne(this.buildUserJobFilter(jobId, userId))
+      .lean<JobLean>()
+      .exec();
     if (!job) return { status: 'not_found' };
     if (job.status !== 'completed') return { status: job.status };
 
@@ -219,7 +246,11 @@ export class JobService {
     page = 1,
     limit = DEFAULT_PAGE_SIZE,
     search = '',
+    type?: JobHistoryType,
   ): Promise<PaginatedJobs> {
+    if (type && !['transcribe', 'translate'].includes(type)) {
+      throw new BadRequestException('Invalid history type');
+    }
     const safePage = Math.max(Math.trunc(page) || 1, 1);
     const safeLimit = Math.min(
       Math.max(Math.trunc(limit) || DEFAULT_PAGE_SIZE, 1),
@@ -227,9 +258,13 @@ export class JobService {
     );
     const skip = (safePage - 1) * safeLimit;
     const normalizedSearch = search.trim();
-    const filter = normalizedSearch
-      ? { userId, title: { $regex: escapeRegex(normalizedSearch), $options: 'i' } }
-      : { userId };
+    const filter = {
+      userId,
+      ...(type ? { type } : {}),
+      ...(normalizedSearch
+        ? { title: { $regex: escapeRegex(normalizedSearch), $options: 'i' } }
+        : {}),
+    };
 
     const [jobs, total] = await Promise.all([
       this.jobModel
@@ -243,7 +278,15 @@ export class JobService {
     ]);
 
     return {
-      jobs,
+      jobs: jobs.map((job) => {
+        const { transcriptText, translatedText, ...metadata } = job;
+        return {
+          ...metadata,
+          resultText: (translatedText || transcriptText || '').slice(0, 240),
+          transcriptText: transcriptText?.slice(0, 240),
+          translatedText: translatedText?.slice(0, 240),
+        };
+      }),
       total,
       page: safePage,
       limit: safeLimit,
@@ -251,8 +294,16 @@ export class JobService {
     };
   }
 
-  async getChunks(jobId: string): Promise<ChunkLean[]> {
+  async getChunks(jobId: string, userId?: string): Promise<ChunkLean[]> {
     this.assertValidId(jobId);
+    if (userId) {
+      const job = await this.jobModel
+        .findOne({ _id: jobId, userId })
+        .select('_id')
+        .lean()
+        .exec();
+      if (!job) throw new NotFoundException('Job not found');
+    }
     return this.chunkModel
       .find({ jobId })
       .sort({ index: 1 })
@@ -260,15 +311,31 @@ export class JobService {
       .exec();
   }
 
-  async deleteJob(jobId: string): Promise<{ message: string }> {
+  async deleteJob(jobId: string, userId?: string): Promise<{ message: string }> {
     this.assertValidId(jobId);
 
-    const [deletedJob] = await Promise.all([
-      this.jobModel.findByIdAndDelete(jobId).exec(),
-      this.chunkModel.deleteMany({ jobId }).exec(),
-    ]);
+    const deletedJob = await this.jobModel
+      .findOneAndDelete(this.buildUserJobFilter(jobId, userId))
+      .exec();
 
     if (!deletedJob) throw new NotFoundException(`Job ${jobId} not found`);
+    await this.chunkModel.deleteMany({ jobId }).exec();
     return { message: 'Deleted successfully' };
+  }
+
+  async getHistoryDetail(jobId: string, userId: string) {
+    this.assertValidId(jobId);
+    const job = await this.jobModel
+      .findOne({ _id: jobId, userId })
+      .lean<JobLean>()
+      .exec();
+    if (!job) throw new NotFoundException('Job not found');
+
+    const chunks = await this.chunkModel
+      .find({ jobId })
+      .sort({ index: 1 })
+      .lean<ChunkLean[]>()
+      .exec();
+    return { job, chunks };
   }
 }

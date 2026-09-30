@@ -16,7 +16,27 @@ import type {
 import type { VideoJob } from './types/video.type';
 
 const getErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
+  (() => {
+    if (error instanceof Error) {
+      const details = error as Error & {
+        code?: string;
+        response?: { status?: number; data?: { error?: string } | string };
+      };
+      const responseError =
+        typeof details.response?.data === 'string'
+          ? details.response.data
+          : details.response?.data?.error;
+      return [
+        details.code,
+        details.message,
+        details.response?.status && `HTTP ${details.response.status}`,
+        responseError,
+      ]
+        .filter(Boolean)
+        .join(' | ');
+    }
+    return String(error);
+  })();
 
 @Processor('video', { concurrency: 1 })
 export class VideoProcessor extends WorkerHost {
@@ -36,7 +56,7 @@ export class VideoProcessor extends WorkerHost {
   ): Promise<TranscribeResponse | TranslateResponse> {
     switch (job.name) {
       case 'TranscriptVideo':
-        return this.handleTranscript(job.data);
+        return this.handleTranscript(job.data, job);
       case 'TranslateVideo':
         return this.handleTranslate(job.data);
       default: {
@@ -99,9 +119,13 @@ export class VideoProcessor extends WorkerHost {
 
   private async handleTranscript(
     data: TranscriptJobData,
+    queueJob?: Job,
   ): Promise<TranscribeResponse> {
     const { mode, model, index, video, jobId, start, end } = data;
     let stream: fs.ReadStream | undefined;
+    const maxAttempts = queueJob?.opts.attempts ?? 3;
+    const isFinalAttempt = !queueJob || queueJob.attemptsMade + 1 >= maxAttempts;
+    this.logger.log(`[TranscriptVideo] job=${jobId} chunk=${index} model=${model}`);
 
     try {
       const filePath = this.fileService.getFilePath(video);
@@ -163,6 +187,11 @@ export class VideoProcessor extends WorkerHost {
       throw error;
     } finally {
       stream?.destroy();
+      // Keep the chunk available for BullMQ retries after transient AI/network
+      // errors. Remove it only after success or the final failed attempt.
+      if (isFinalAttempt) {
+        await this.fileService.deleteFile(video, { ignoreMissing: true });
+      }
     }
   }
 
