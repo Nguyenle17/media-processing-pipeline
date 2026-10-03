@@ -15,8 +15,8 @@ import type {
   JobProgressResult,
   JobResult,
   JobType,
-  PaginatedJobs,
-} from './type/JobType';
+} from './type/job.type';
+import type { PaginatedJobs } from './interfaces/job.interface';
 
 const DEFAULT_PAGE_SIZE = 8;
 const MAX_PAGE_SIZE = 100;
@@ -311,7 +311,10 @@ export class JobService {
       .exec();
   }
 
-  async deleteJob(jobId: string, userId?: string): Promise<{ message: string }> {
+  async deleteJob(
+    jobId: string,
+    userId?: string,
+  ): Promise<{ message: string }> {
     this.assertValidId(jobId);
 
     const deletedJob = await this.jobModel
@@ -323,7 +326,10 @@ export class JobService {
     return { message: 'Deleted successfully' };
   }
 
-  async getHistoryDetail(jobId: string, userId: string) {
+  async getHistoryDetail(
+    jobId: string,
+    userId: string,
+  ): Promise<{ job: JobLean; chunks: ChunkLean[] }> {
     this.assertValidId(jobId);
     const job = await this.jobModel
       .findOne({ _id: jobId, userId })

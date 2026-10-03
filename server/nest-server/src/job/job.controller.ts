@@ -11,7 +11,15 @@ import {
 } from '@nestjs/common';
 import { JobService } from './job.service';
 import { JwtAuthGuard } from '../auth/guard/jwt-auth.guard';
-import type { JobHistoryType } from './type/JobType';
+import type {
+  ChunkLean,
+  JobDoc,
+  JobHistoryType,
+  JobLean,
+  JobResult,
+} from './type/job.type';
+import type { JobProgressResult } from './type/job.type';
+import { PaginatedJobs } from './interfaces/job.interface';
 
 type AuthenticatedRequest = Request & {
   user: {
@@ -30,7 +38,7 @@ export class JobController {
     @Body('duration') duration: number,
     @Body('targetLang') targetLang: string,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<JobDoc> {
     const userId = req.user.userId;
     return this.jobService.createJob(
       userId,
@@ -45,7 +53,7 @@ export class JobController {
   async getProcess(
     @Param('jobId') jobId: string,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<JobProgressResult> {
     return this.jobService.getProcess(jobId, req.user.userId);
   }
 
@@ -53,7 +61,7 @@ export class JobController {
   async getJobResult(
     @Param('jobId') jobId: string,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<JobResult> {
     return this.jobService.getJobResult(jobId, req.user.userId);
   }
 
@@ -64,7 +72,7 @@ export class JobController {
     @Query('search') search = '',
     @Query('type') type: JobHistoryType | undefined,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<PaginatedJobs> {
     return this.jobService.getJobsByUser(
       req.user.userId,
       Number(page),
@@ -78,7 +86,7 @@ export class JobController {
   async getHistoryDetail(
     @Param('jobId') jobId: string,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<{ job: JobLean; chunks: ChunkLean[] }> {
     return this.jobService.getHistoryDetail(jobId, req.user.userId);
   }
 
@@ -89,7 +97,7 @@ export class JobController {
     @Query('search') search = '',
     @Query('type') type: JobHistoryType | undefined,
     @Req() req: AuthenticatedRequest,
-  ) {
+  ): Promise<PaginatedJobs> {
     const userId = req.user.userId;
     return this.jobService.getJobsByUser(
       userId,
@@ -101,12 +109,18 @@ export class JobController {
   }
 
   @Get('chunks')
-  async getChunks(@Query('jobId') jobId: string, @Req() req: AuthenticatedRequest) {
+  async getChunks(
+    @Query('jobId') jobId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<ChunkLean[]> {
     return this.jobService.getChunks(jobId, req.user.userId);
   }
 
   @Delete('delete')
-  async deleteJob(@Query('jobId') jobId: string, @Req() req: AuthenticatedRequest) {
+  async deleteJob(
+    @Query('jobId') jobId: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ message: string }> {
     return this.jobService.deleteJob(jobId, req.user.userId);
   }
 }

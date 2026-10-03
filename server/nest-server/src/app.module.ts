@@ -10,6 +10,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { JobModule } from './job/job.module';
 import { RedisService } from './redis/redis.service';
 import { RedisModule } from './redis/redis.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ dotenv.config();
     JobModule,
     RedisModule,
     AdminModule,
+    CloudinaryModule,
   ],
   providers: [RedisService],
 })

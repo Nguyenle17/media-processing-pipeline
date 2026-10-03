@@ -2,129 +2,149 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  Optional,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import ffmpeg from 'fluent-ffmpeg';
+import * as path from 'path';
+import type {
+  GrammarResponse,
+  TextToSpeechResult,
+  TranscribeVideoResult,
+  VideoChunk,
+} from './interfaces/video.interface';
+import { WHISPER_MODELS } from './types/video.type';
+import type { TranscribeMode, WhisperModel } from './types/video.type';
+import {
+  TranscribeVideoDto,
+  TranslateVideoDto,
+  GrammarDto,
+  TextToSpeechDto,
+} from './dto/video.dto';
 import { FileService } from '../file/file.service';
 import { JobService } from '../job/job.service';
 import { UsersService } from '../users/users.service';
-import ffmpeg from 'fluent-ffmpeg';
-import * as path from 'path';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { Video } from './schemas/video.schema';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+const CHUNK_DURATION_SECONDS = 60 * 5;
+const FETCH_TIMEOUT_MS = 30_000;
+
+function isWhisperModel(value: unknown): value is WhisperModel {
+  return (
+    typeof value === 'string' &&
+    (WHISPER_MODELS as readonly string[]).includes(value)
+  );
+}
+
+function toMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 @Injectable()
 export class VideoService {
   constructor(
-    private fileService: FileService,
-    private jobService: JobService,
-    @Optional() private usersService: UsersService,
-    @InjectQueue('video') private videoQueue: Queue,
+    private readonly fileService: FileService,
+    private readonly jobService: JobService,
+    private readonly cloudinaryService: CloudinaryService,
+    private readonly usersService: UsersService,
+    @InjectQueue('video')
+    private readonly videoQueue: Queue,
+    @InjectModel(Video.name)
+    private readonly videoModel: Model<Video>,
   ) {}
 
-  async transcribeVideo(file: Express.Multer.File, data: any, userId: string) {
-    const { jobId, mode = 'normal' } = data;
-    if (!jobId) throw new BadRequestException('jobId is required');
+  async transcribeVideo(
+    file: Express.Multer.File,
+    dto: TranscribeVideoDto,
+    userId: string,
+  ): Promise<TranscribeVideoResult> {
+    const { jobId } = dto;
+    const mode: TranscribeMode = dto.mode ?? 'normal';
+
     const job = await this.jobService.getJobByUser(jobId, userId);
     if (!job) throw new NotFoundException('Job not found');
     if (job.status !== 'waiting') {
       throw new BadRequestException('Job is already being processed');
     }
+
     const user = await this.usersService.findById(userId);
-    const model = user?.selectedModel || 'base';
-    if (!['tiny', 'base', 'small', 'medium', 'large'].includes(model)) {
+    const selectedModel: unknown = user?.selectedModel ?? 'base';
+    if (!isWhisperModel(selectedModel)) {
       throw new BadRequestException('Unsupported transcription model');
     }
-    if (!['normal', 'segments'].includes(mode)) {
-      throw new BadRequestException('mode must be normal or segments');
-    }
-    const start = parseFloat(data.start) || 0;
+    const model: WhisperModel = selectedModel;
 
     const inputPath = await this.fileService.saveFile(file);
-    const fullPath = path.join(process.cwd(), 'uploads', inputPath);
-
-    let videoDuration: number;
-    try {
-      videoDuration = await this.getVideoDuration(fullPath);
-    } catch (error) {
-      await this.fileService.deleteFile(inputPath, { ignoreMissing: true });
-      throw new BadRequestException('Unable to read video metadata');
-    }
-    const requestedEnd = Number.parseFloat(data.end);
-    const end =
-      Number.isFinite(requestedEnd) && requestedEnd > 0
-        ? Math.min(requestedEnd, videoDuration)
-        : videoDuration;
-
-    if (start >= end) {
-      await this.fileService.deleteFile(inputPath, { ignoreMissing: true });
-      throw new BadRequestException('start phải nhỏ hơn end');
-    }
-
-    const chunkDuration = 60 * 5;
-    const totalChunks = Math.ceil((end - start) / chunkDuration);
-    await this.jobService.updateTotalChunks(jobId, totalChunks);
-
+    const fullPath = path.join(UPLOAD_DIR, inputPath);
     const chunkNames: string[] = [];
+
     try {
-      const chunks = Array.from({ length: totalChunks }, (_, i) => {
-        const chunkStart = start + i * chunkDuration;
-        const chunkEnd = Math.min(chunkStart + chunkDuration, end);
-        const chunkName = `${jobId}_chunk_${i}.mp4`;
-        const chunkPath = path.join(process.cwd(), 'uploads', chunkName);
-        chunkNames.push(chunkName);
-        return { chunkStart, chunkEnd, chunkName, chunkPath, index: i };
+      const videoDuration = await this.getVideoDuration(fullPath).catch(() => {
+        throw new BadRequestException('Unable to read video metadata');
       });
 
-      await Promise.all(
-        chunks.map(({ chunkPath, chunkStart, chunkEnd }) =>
-          this.splitVideo(
-            fullPath,
-            chunkPath,
-            chunkStart,
-            chunkEnd - chunkStart,
-          ),
-        ),
-      );
-      await Promise.all(
-        chunks.map(({ chunkStart, chunkEnd, chunkName, index }) =>
-          this.videoQueue.add('TranscriptVideo', {
+      const { start, end } = this.resolveRange(dto, videoDuration);
+
+      const chunks = this.buildChunks(jobId, start, end);
+      chunkNames.push(...chunks.map((c) => c.chunkName));
+
+      await this.jobService.updateTotalChunks(jobId, chunks.length);
+
+      for (const c of chunks) {
+        await this.splitVideo(
+          fullPath,
+          c.chunkPath,
+          c.chunkStart,
+          c.chunkEnd - c.chunkStart,
+        );
+      }
+
+      await this.videoQueue.addBulk(
+        chunks.map((c) => ({
+          name: 'TranscriptVideo',
+          data: {
             mode,
             model,
-            index,
-            video: chunkName,
+            index: c.index,
+            video: c.chunkName,
             jobId,
-            start: chunkStart,
-            end: chunkEnd,
-          }),
-        ),
+            start: c.chunkStart,
+            end: c.chunkEnd,
+          },
+        })),
       );
 
       await this.fileService.deleteFile(inputPath, { ignoreMissing: true });
-      return { message: 'Video split and queued', totalChunks };
+      return { message: 'Video split and queued', totalChunks: chunks.length };
     } catch (error) {
       await Promise.all(
         [inputPath, ...chunkNames].map((filename) =>
           this.fileService.deleteFile(filename, { ignoreMissing: true }),
         ),
       );
-      await this.jobService.markJobFailed(
-        jobId,
-        error instanceof Error ? error.message : String(error),
-      );
+      if (!(error instanceof BadRequestException)) {
+        await this.jobService.markJobFailed(jobId, toMessage(error));
+      }
       throw error;
     }
   }
 
   async translateVideo(
-    data: { jobId: string; target_lang: string },
+    data: TranslateVideoDto,
     userId: string,
-  ) {
+  ): Promise<{ message: string }> {
     const job = await this.jobService.getJobByUser(data.jobId, userId);
     if (!job) throw new NotFoundException('Job not found');
-    if (!job.transcriptText)
-      throw new BadRequestException('Transcript chưa sẵn sàng');
-    if (job.status !== 'completed')
-      throw new BadRequestException('Job chưa sẵn sàng để dịch');
+    if (!job.transcriptText) {
+      throw new BadRequestException('Transcript is not ready');
+    }
+    if (job.status !== 'completed') {
+      throw new BadRequestException('Job is not ready for translation');
+    }
 
     await this.jobService.markTranslating(data.jobId);
     try {
@@ -134,65 +154,127 @@ export class VideoService {
         target_lang: data.target_lang || 'en',
       });
     } catch (error) {
-      await this.jobService.markJobFailed(
-        data.jobId,
-        error instanceof Error ? error.message : String(error),
-      );
+      await this.jobService.markJobFailed(data.jobId, toMessage(error));
       throw error;
     }
     return { message: 'Translation queued' };
   }
 
-  async checkGrammar(data: { text: string }) {
+  async checkGrammar(data: GrammarDto): Promise<{ correctedText: string }> {
     const response = await fetch(`${process.env.AI_URI}/grammar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: data.text }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`Grammar service error: ${await response.text()}`);
+    }
+
+    const json = (await response.json()) as GrammarResponse;
     if (json.error) throw new Error(json.error.message);
+    if (json.corrected_text === undefined) {
+      throw new Error('Invalid grammar service response');
+    }
     return { correctedText: json.corrected_text };
   }
 
-  async textToSpeech(data: {
-    text: string;
-    language: string;
-  }): Promise<{ audioBuffer: Buffer; filename: string }> {
-    const { text, language } = data;
+  async textToSpeech(
+    data: TextToSpeechDto,
+    userId: string,
+  ): Promise<TextToSpeechResult> {
+    const text = data.text?.trim();
+    const language = data.language?.trim();
 
-    if (!text?.trim())
-      throw new BadRequestException('text không được để trống');
-    if (!language?.trim())
-      throw new BadRequestException('language không được để trống');
+    if (!text) throw new BadRequestException('text must not be empty');
+    if (!language) throw new BadRequestException('language must not be empty');
 
     const response = await fetch(`${process.env.AI_URI}/text-to-speech`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.trim(), lang: language.trim() }),
+      body: JSON.stringify({ text, lang: language }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`TTS service error: ${err}`);
+      throw new Error(`TTS service error: ${await response.text()}`);
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = Buffer.from(arrayBuffer);
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
     const filename = `tts_${language}_${Date.now()}.mp3`;
+
+    const cloudinaryResult = await this.cloudinaryService.uploadFile(
+      audioBuffer,
+      'tts',
+    );
+
+    const rawDuration: unknown = cloudinaryResult.duration;
+    const duration =
+      typeof rawDuration === 'number' && Number.isFinite(rawDuration)
+        ? rawDuration
+        : 0;
+
+    await this.videoModel.create({
+      userId: new Types.ObjectId(userId),
+      title: `TTS_${language}`,
+      content: text,
+      originalFilename: filename,
+      type: 'audio',
+      cloudinaryPublicId: cloudinaryResult.public_id,
+      cloudinaryUrl: cloudinaryResult.secure_url,
+      duration,
+    });
 
     return { audioBuffer, filename };
   }
 
-  getVideoDuration(filePath: string): Promise<number> {
+  private resolveRange(
+    dto: TranscribeVideoDto,
+    videoDuration: number,
+  ): { start: number; end: number } {
+    const start = dto.start ?? 0;
+    const end =
+      dto.end !== undefined && dto.end > 0
+        ? Math.min(dto.end, videoDuration)
+        : videoDuration;
+
+    if (start >= end) {
+      throw new BadRequestException('start must be less than end');
+    }
+    return { start, end };
+  }
+
+  private buildChunks(jobId: string, start: number, end: number): VideoChunk[] {
+    const totalChunks = Math.ceil((end - start) / CHUNK_DURATION_SECONDS);
+    return Array.from({ length: totalChunks }, (_, index) => {
+      const chunkStart = start + index * CHUNK_DURATION_SECONDS;
+      const chunkEnd = Math.min(chunkStart + CHUNK_DURATION_SECONDS, end);
+      const chunkName = `${jobId}_chunk_${index}.mp4`;
+      return {
+        index,
+        chunkStart,
+        chunkEnd,
+        chunkName,
+        chunkPath: path.join(UPLOAD_DIR, chunkName),
+      };
+    });
+  }
+
+  private getVideoDuration(filePath: string): Promise<number> {
     return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
-        if (err) reject(err);
-        else resolve(metadata.format.duration ?? 0);
+        if (err) return reject(err);
+        const duration = metadata.format.duration;
+        if (typeof duration !== 'number' || !Number.isFinite(duration)) {
+          return reject(new Error('Cannot determine video duration'));
+        }
+        resolve(duration);
       });
     });
   }
 
-  splitVideo(
+  private splitVideo(
     input: string,
     output: string,
     start: number,
@@ -204,8 +286,8 @@ export class VideoService {
         .setDuration(duration)
         .output(output)
         .outputOptions('-c copy')
-        .on('end', resolve)
-        .on('error', reject)
+        .on('end', () => resolve())
+        .on('error', (err: Error) => reject(err))
         .run();
     });
   }

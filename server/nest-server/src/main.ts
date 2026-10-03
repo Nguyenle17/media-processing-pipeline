@@ -8,7 +8,12 @@ async function bootstrap() {
   const cookieParser = require('cookie-parser');
   app.use(cookieParser());
 
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+    }),
+  );
 
   app.enableCors({
     origin: 'http://localhost:5173',

@@ -3,40 +3,40 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 @Schema({ timestamps: true })
 export class Job {
   @Prop({ required: true })
-  userId: string;
+  userId!: string;
 
   @Prop({ default: 'Untitled Job' })
-  title: string;
+  title!: string;
 
   @Prop({ default: 'transcribe', enum: ['transcribe', 'translate'] })
-  type: string;
+  type!: string;
 
   @Prop({ default: 0 })
-  totalChunks: number;
+  totalChunks!: number;
 
   @Prop({ default: 0 })
-  processedChunks: number;
+  processedChunks!: number;
 
   @Prop({
     default: 'waiting',
     enum: ['waiting', 'processing', 'translating', 'completed', 'failed'],
   })
-  status: string;
+  status!: string;
 
   @Prop()
-  transcriptText: string;
+  transcriptText!: string;
 
   @Prop()
-  translatedText: string;
+  translatedText!: string;
 
   @Prop({ default: 0 })
-  duration: number;
+  duration!: number;
 
   @Prop()
-  targetLang: string;
+  targetLang!: string;
 
   @Prop()
-  error: string;
+  error!: string;
 }
 
 export const JobSchema = SchemaFactory.createForClass(Job);

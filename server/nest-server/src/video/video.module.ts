@@ -8,6 +8,9 @@ import { BullModule } from '@nestjs/bullmq';
 import { VideoProcessor } from './video.processor';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { UsersModule } from '../users/users.module';
+import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
+import { MongooseModule } from '@nestjs/mongoose';
+import { Video, VideoSchema } from './schemas/video.schema';
 
 @Module({
   imports: [
@@ -15,6 +18,8 @@ import { UsersModule } from '../users/users.module';
     FileModule,
     UsersModule,
     HttpModule,
+    CloudinaryModule,
+    MongooseModule.forFeature([{ name: Video.name, schema: VideoSchema }]),
     BullModule.registerQueue({
       name: 'video',
       defaultJobOptions: {
