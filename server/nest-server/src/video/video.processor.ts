@@ -58,7 +58,7 @@ export class VideoProcessor extends WorkerHost {
       case 'TranscriptVideo':
         return this.handleTranscript(job.data, job);
       case 'TranslateVideo':
-        return this.handleTranslate(job.data);
+        return this.handleTranslate(job.data, job);
       default: {
         const unknownJob: never = job;
         throw new Error(`Unknown job type: ${(unknownJob as Job).name}`);
@@ -168,16 +168,19 @@ export class VideoProcessor extends WorkerHost {
         const finishedJob =
           await this.jobService.markTranscribeCompleted(jobId);
 
-        if (
-          finishedJob &&
-          finishedJob.type === 'translate' &&
-          finishedJob.transcriptText
-        ) {
-          await this.videoQueue.add('TranslateVideo', {
-            jobId,
-            text: finishedJob.transcriptText,
-            target_lang: finishedJob.targetLang || 'en',
-          } satisfies TranslateJobData);
+        if (finishedJob?.type === 'translate') {
+          if (!finishedJob.transcriptText?.trim()) {
+            await this.jobService.markJobFailed(
+              jobId,
+              'No speech was detected in the selected video range',
+            );
+          } else {
+            await this.videoQueue.add('TranslateVideo', {
+              jobId,
+              text: finishedJob.transcriptText,
+              target_lang: finishedJob.targetLang || 'en',
+            } satisfies TranslateJobData);
+          }
         }
       }
 
@@ -189,7 +192,9 @@ export class VideoProcessor extends WorkerHost {
       this.logger.error(
         `[TranscriptVideo] chunk ${index} of job ${jobId} failed: ${message}`,
       );
-      await this.jobService.markJobFailed(jobId, message);
+      if (isFinalAttempt) {
+        await this.jobService.markJobFailed(jobId, message);
+      }
       throw error;
     } finally {
       stream?.destroy();
@@ -203,11 +208,14 @@ export class VideoProcessor extends WorkerHost {
 
   private async handleTranslate(
     data: TranslateJobData,
+    queueJob?: Job,
   ): Promise<TranslateResponse> {
     const { jobId, text, target_lang } = data;
     this.logger.log(
       `[TranslateVideo] job=${jobId} lang=${target_lang} text_len=${text?.length}`,
     );
+    const maxAttempts = queueJob?.opts.attempts ?? 1;
+    const isFinalAttempt = !queueJob || queueJob.attemptsMade + 1 >= maxAttempts;
 
     try {
       const response = await firstValueFrom(
@@ -230,7 +238,9 @@ export class VideoProcessor extends WorkerHost {
     } catch (error: unknown) {
       const message = getErrorMessage(error);
       this.logger.error(`[TranslateVideo] job=${jobId} failed: ${message}`);
-      await this.jobService.markJobFailed(jobId, message);
+      if (isFinalAttempt) {
+        await this.jobService.markJobFailed(jobId, message);
+      }
       throw error;
     }
   }

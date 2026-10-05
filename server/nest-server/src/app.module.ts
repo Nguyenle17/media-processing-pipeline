@@ -11,13 +11,16 @@ import { JobModule } from './job/job.module';
 import { RedisService } from './redis/redis.service';
 import { RedisModule } from './redis/redis.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import * as path from 'path';
 
-dotenv.config();
+const envFilePath = path.resolve(__dirname, '../.env');
+dotenv.config({ path: envFilePath });
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath,
     }),
 
     BullModule.forRoot({

@@ -35,16 +35,18 @@ export function useJobPolling({
           await new Promise((r) => setTimeout(r, pollInterval));
 
           const job = await Api.get(`/job/process/${jobId}`);
+          const updatedAt = Date.parse(job.updatedAt ?? '');
+          if (Number.isFinite(updatedAt)) {
+            lastActivity = Math.max(lastActivity, updatedAt);
+          }
 
           switch (job.status) {
             case 'waiting':
               setStatus('Waiting in queue...');
               setPercentage(0);
-              lastActivity = Date.now();
               break;
 
             case 'processing':
-              lastActivity = new Date(job.updatedAt).getTime();
               if (job.processedChunks && job.totalChunks) {
                 const raw = (job.processedChunks / job.totalChunks) * 100;
                 const pct = Math.round(5 + raw * 0.8);
@@ -57,7 +59,6 @@ export function useJobPolling({
               break;
 
             case 'translating':
-              lastActivity = Date.now();
               setPercentage(88);
               setStatus('Translating...');
               break;
@@ -76,7 +77,7 @@ export function useJobPolling({
             }
 
             case 'failed':
-              throw new Error('Job failed on server');
+              throw new Error(job.error || 'Job failed on server');
           }
 
           if (Date.now() - lastActivity > idleTimeout) {

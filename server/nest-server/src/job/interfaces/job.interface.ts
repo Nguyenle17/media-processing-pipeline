@@ -11,6 +11,7 @@ export interface JobProgress {
   totalChunks: number;
   updatedAt?: Date;
   pct: number;
+  error?: string;
 }
 
 export interface PaginatedJobs {

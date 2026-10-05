@@ -8,6 +8,8 @@ import re
 import hmac
 import logging
 
+from dotenv import load_dotenv
+
 import torch
 import whisper
 import fasttext
@@ -18,6 +20,8 @@ from transformers import (
     AutoModelForSeq2SeqLM,
     M2M100ForConditionalGeneration,
 )
+
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # ============================================================
 # CONFIG
@@ -43,11 +47,15 @@ if len(AI_SERVICE_TOKEN) < 32:
 app.config["MAX_CONTENT_LENGTH"] = int(
     os.environ.get("AI_MAX_REQUEST_BYTES", str(512 * 1024 * 1024))
 )
+
 app.logger.setLevel(logging.INFO)
 
 WHISPER_NAMES = ("tiny", "base", "small", "medium", "large")
 WHISPER_DEFAULT = "small"
 MAX_TTS_CHARS = 2000
+SUPPORTED_TRANSLATION_LANGS = {
+    "vi", "en", "zh", "ko", "ja", "fr", "de", "es",
+}
 
 whisper_lock = threading.Lock()
 grammar_lock = threading.Lock()
@@ -335,6 +343,8 @@ def translate():
 
     if not text:
         return jsonify({"error": "No text provided"}), 400
+    if target_lang not in SUPPORTED_TRANSLATION_LANGS:
+        return jsonify({"error": "Unsupported target language"}), 400
 
     try:
         source_lang = detect_language(text)
@@ -345,8 +355,8 @@ def translate():
             "translated_text": translated_text,
         })
     except Exception as e:
-        app.logger.error(f"Translate error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        app.logger.error("Translation failed", exc_info=True)
+        return jsonify({"error": "Translation failed"}), 502
 
 
 @app.route("/detect-language", methods=["POST"])

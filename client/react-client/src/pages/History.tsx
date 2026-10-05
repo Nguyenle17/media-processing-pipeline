@@ -30,8 +30,12 @@ export default function History() {
     try {
       setLoading(true); setError(null);
       const response = await translationHistoryApi.list(page, 8, search);
-      setJobs(Array.isArray(response.jobs) ? response.jobs : []);
+      const nextJobs = Array.isArray(response.jobs) ? response.jobs : [];
+      setJobs(nextJobs);
       setTotalPages(response.totalPages || 1);
+      setSelectedJob((current) =>
+        nextJobs.find((job) => job._id === current?._id) ?? null,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không thể tải lịch sử translate.');
     } finally { setLoading(false); }

@@ -22,11 +22,11 @@ interface RawTtsItem {
   _id?: string;
   id?: string;
   title?: string;  
-  content?: string;
+  originalText?: string;
   originalFilename?: string;
   type?: 'video' | 'audio';
   cloudinaryPublicId?: string;
-  cloudinaryUrl?: string;
+  audioUrl?: string;
   language?: string;
   voice?: string;
   duration?: number;
@@ -52,8 +52,8 @@ function normalizeItem(raw: RawTtsItem): TtsHistoryItem {
   return {
     id: raw._id ?? raw.id ?? '',
     title: raw.title ?? '',
-    originalText: raw.content ?? '',
-    audioUrl: raw.cloudinaryUrl ?? '',
+    originalText: raw.originalText ?? '',
+    audioUrl: raw.audioUrl ?? '',
     language: extractLanguage(raw),
     duration: raw.duration,
     createdAt: raw.createdAt ?? '',

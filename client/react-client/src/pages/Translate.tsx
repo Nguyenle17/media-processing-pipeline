@@ -7,7 +7,7 @@ import FileDropzone from '../components/common/FileDropzone';
 import ExportPanel from '../components/common/ExportPanel';
 import LanguagePicker from '../components/common/LanguagePicker';
 import { LANGUAGES } from '../constants/languages';
-import { UploadCloud, Sparkles, Languages, FileVideo, SlidersHorizontal, History } from 'lucide-react';
+import { AlertCircle, UploadCloud, Sparkles, Languages, FileVideo, SlidersHorizontal, History } from 'lucide-react';
 import RangeSlider from 'react-range-slider-input';
 import 'react-range-slider-input/dist/style.css';
 import Api from '../api/Api';
@@ -22,6 +22,7 @@ export default function Translate() {
   const [duration, setDuration] = useState<number>(0);
   const [range, setRange] = useState<[number, number]>([0, 100]);
   const [text, setText] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState<string>('en');
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -48,6 +49,7 @@ export default function Translate() {
       setVideoFile(file);
       setVideoURL(URL.createObjectURL(file));
       setText('');
+      setError(null);
       poller.reset();
       uploader.reset();
     }
@@ -70,6 +72,7 @@ export default function Translate() {
     if (!videoFile || isWorking) return;
 
     setText('');
+    setError(null);
     poller.reset();
     uploader.reset();
 
@@ -103,7 +106,7 @@ export default function Translate() {
       setText(resultText);
     } catch (error) {
       console.error(error);
-      setText(error instanceof Error ? `Error: ${error.message}` : 'Translation failed');
+      setError(error instanceof Error ? error.message : 'Translation failed');
     }
   };
 
@@ -285,6 +288,11 @@ export default function Translate() {
                     style={{ width: `${totalProgress}%` }}
                   />
                 </div>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-red-300 text-center">
+                <AlertCircle size={36} />
+                <p>{error}</p>
               </div>
             ) : text ? (
               <div className="vs-result-text p-4 whitespace-pre-wrap">{text}</div>

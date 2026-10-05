@@ -20,6 +20,9 @@ import type { PaginatedJobs } from './interfaces/job.interface';
 
 const DEFAULT_PAGE_SIZE = 8;
 const MAX_PAGE_SIZE = 100;
+const SUPPORTED_TRANSLATION_LANGS = new Set([
+  'vi', 'en', 'zh', 'ko', 'ja', 'fr', 'de', 'es',
+]);
 
 const escapeRegex = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -44,6 +47,9 @@ export class JobService {
     duration = 0,
     targetLang?: string,
   ): Promise<JobDoc> {
+    if (type === 'translate' && !SUPPORTED_TRANSLATION_LANGS.has(targetLang || '')) {
+      throw new BadRequestException('Unsupported translation language');
+    }
     const safeTitle = title?.trim() || 'Untitled Job';
     return new this.jobModel({
       userId,
@@ -196,6 +202,7 @@ export class JobService {
       totalChunks: job.totalChunks,
       updatedAt: job.updatedAt,
       pct,
+      error: job.error,
     };
   }
 

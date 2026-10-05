@@ -169,7 +169,10 @@ export class VideoService {
 
     const response = await fetch(`${aiUri}/grammar`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-AI-Service-Token': aiToken },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-AI-Service-Token': aiToken,
+      },
       body: JSON.stringify({ text: data.text }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
@@ -196,7 +199,9 @@ export class VideoService {
     if (!text) throw new BadRequestException('text must not be empty');
     if (!language) throw new BadRequestException('language must not be empty');
     if (text.length > MAX_TTS_CHARS) {
-      throw new BadRequestException(`text must not exceed ${MAX_TTS_CHARS} characters`);
+      throw new BadRequestException(
+        `text must not exceed ${MAX_TTS_CHARS} characters`,
+      );
     }
 
     const aiUri = process.env.AI_URI?.replace(/\/$/, '');
@@ -274,7 +279,11 @@ export class VideoService {
     };
     if (escapedSearch) {
       const expression = { $regex: escapedSearch, $options: 'i' };
-      filter.$or = [{ title: expression }, { content: expression }, { language: expression }];
+      filter.$or = [
+        { title: expression },
+        { content: expression },
+        { language: expression },
+      ];
     }
 
     const items = await this.videoModel

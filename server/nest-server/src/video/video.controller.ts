@@ -92,6 +92,7 @@ export class VideoController {
     @Req() req: AuthenticatedVideoRequest,
     @Param('id') id: string,
   ) {
-    return this.videoService.deleteTtsHistory(id, req.user.userId);
+    await this.videoService.deleteTtsHistory(id, req.user.userId);
+    return { message: 'TTS history deleted' };
   }
 }
