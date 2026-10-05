@@ -8,6 +8,10 @@ import {
   UseGuards,
   Res,
   BadRequestException,
+  Query,
+  Get,
+  Delete,
+  Param,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import type { Request } from 'express';
@@ -59,13 +63,38 @@ export class VideoController {
     @Req() req: AuthenticatedVideoRequest,
     @Res() res: Response,
   ) {
-    const { audioBuffer, filename } =
-      await this.videoService.textToSpeech(body, req.user.userId);
+    const { audioBuffer, filename } = await this.videoService.textToSpeech(
+      body,
+      req.user.userId,
+    );
     res.set({
       'Content-Type': 'audio/mpeg',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Length': audioBuffer.length,
     });
     res.end(audioBuffer);
+  }
+
+  @Get('tts/history')
+  async getTtsHistory(
+    @Req() req: AuthenticatedVideoRequest,
+    @Query('page') page = 1,
+    @Query('limit') limit = 6,
+    @Query('search') search = '',
+  ) {
+    return this.videoService.getTssHistory(
+      page,
+      limit,
+      search,
+      req.user.userId,
+    );
+  }
+
+  @Delete('tts/history/:id')
+  async deleteTtsHistory(
+    @Req() req: AuthenticatedVideoRequest,
+    @Param('id') id: string,
+  ) {
+    return this.videoService.deleteTtsHistory(id, req.user.userId);
   }
 }

@@ -69,7 +69,13 @@ export class VideoProcessor extends WorkerHost {
   private get aiUri(): string {
     const uri = process.env.AI_URI;
     if (!uri) throw new Error('AI_URI is not configured');
-    return uri;
+    return uri.replace(/\/$/, '');
+  }
+
+  private get aiServiceToken(): string {
+    const token = process.env.AI_SERVICE_TOKEN;
+    if (!token) throw new Error('AI_SERVICE_TOKEN is not configured');
+    return token;
   }
 
   /**
@@ -108,7 +114,7 @@ export class VideoProcessor extends WorkerHost {
   private async postToAI<T>(endpoint: string, formData: FormData): Promise<T> {
     const response = await firstValueFrom(
       this.httpService.post<T>(`${this.aiUri}/${endpoint}`, formData, {
-        headers: formData.getHeaders(),
+        headers: { ...formData.getHeaders(), 'X-AI-Service-Token': this.aiServiceToken },
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
         timeout: this.aiRequestTimeout,
@@ -208,7 +214,12 @@ export class VideoProcessor extends WorkerHost {
         this.httpService.post<TranslateResponse>(
           `${this.aiUri}/translate`,
           { text, target_lang: target_lang || 'en' },
-          { headers: { 'Content-Type': 'application/json' } },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-AI-Service-Token': this.aiServiceToken,
+            },
+          },
         ),
       );
 

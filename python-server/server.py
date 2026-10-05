@@ -5,6 +5,7 @@ import subprocess
 import threading
 import asyncio
 import re
+import hmac
 
 import torch
 import whisper
@@ -29,9 +30,13 @@ else:
     torch.set_num_threads(2)  # chỉ có ý nghĩa khi chạy CPU
 
 app = Flask(__name__)
+AI_SERVICE_TOKEN = os.environ.get("AI_SERVICE_TOKEN")
+if not AI_SERVICE_TOKEN:
+    raise RuntimeError("AI_SERVICE_TOKEN must be configured")
 
 WHISPER_NAMES = ("tiny", "base", "small", "medium", "large")
 WHISPER_DEFAULT = "small"
+MAX_TTS_CHARS = 2000
 
 whisper_lock = threading.Lock()
 grammar_lock = threading.Lock()
@@ -107,6 +112,16 @@ def normalize_lang(code: str) -> str:
     """Chuẩn hoá mã ngôn ngữ: 'zh-CN' / 'zh_tw' -> 'zh', 'en-US' -> 'en'."""
     code = (code or "").strip().lower().replace("_", "-")
     return code.split("-")[0] if code else code
+
+
+@app.before_request
+def require_internal_token():
+    if request.path == "/health":
+        return None
+    supplied = request.headers.get("X-AI-Service-Token", "")
+    if not hmac.compare_digest(supplied, AI_SERVICE_TOKEN):
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
 
 
 def convert_to_wav(input_path: str) -> str:
@@ -339,6 +354,8 @@ def text_speech():
 
     if not text:
         return jsonify({"error": "No text provided"}), 400
+    if len(text) > MAX_TTS_CHARS:
+        return jsonify({"error": "Text is too long"}), 400
     if not target_lang:
         return jsonify({"error": "No language provided"}), 400
 
@@ -364,8 +381,8 @@ def text_speech():
         return send_file(io.BytesIO(audio), mimetype="audio/mpeg")
 
     except Exception as e:
-        app.logger.error(f"TTS error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        app.logger.error("TTS generation failed", exc_info=True)
+        return jsonify({"error": "TTS generation failed"}), 502
 
 
 if __name__ == "__main__":

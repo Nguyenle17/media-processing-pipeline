@@ -32,7 +32,7 @@ export default function ExtractAudio() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ text, language: targetLang })
+        body: JSON.stringify({ text: text.trim(), language: targetLang })
       });
       if (!response.ok) {
         if (response.status === 401 && token) {
@@ -44,7 +44,7 @@ export default function ExtractAudio() {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${newToken}`,
             },
-            body: JSON.stringify({ text, language: targetLang }),
+              body: JSON.stringify({ text: text.trim(), language: targetLang }),
           });
           if (retry.ok) {
             const blob = await retry.blob();

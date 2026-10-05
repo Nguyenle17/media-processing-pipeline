@@ -6,7 +6,7 @@ class Api {
     onLogout?: () => void;
 
     constructor() {
-        this.token = localStorage.getItem("token") || null;
+        this.token = null;
         this.BASE_URL = BASE_URL;
     }
 
@@ -27,12 +27,9 @@ class Api {
             if (!response.ok) throw new Error('Refresh failed');
             const result = await response.json();
             this.token = result.accessToken;
-            console.log('Token refreshed:', this.token);
-            localStorage.setItem("token", result.accessToken);
             return result.accessToken;
         } catch (error) {
             this.token = null;
-            localStorage.removeItem("token");
             if (this.onLogout) this.onLogout();
             throw error;
         }

@@ -27,7 +27,7 @@ export interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-    const [token, setToken] = useState<string | null>(() => localStorage.getItem("token") || null);
+    const [token, setToken] = useState<string | null>(null);
     const [user, setUser] = useState<JwtPayload | null>(null);
     const [loading, setLoading] = useState(true);
     const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -53,7 +53,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const expiresIn = decoded.exp * 1000 - Date.now();
             const refreshIn = expiresIn - 60 * 1000;
             if (refreshIn <= 0) { silentRefresh(); return; }
-            console.log(`Token refresh scheduled in ${Math.round(refreshIn / 1000)}s`);
             refreshTimerRef.current = setTimeout(() => silentRefresh(), refreshIn);
         } catch { silentRefresh(); }
     };
@@ -87,11 +86,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         scheduleRefresh(token);
                     }
                 } catch {
-                    localStorage.removeItem("token");
                     localStorage.removeItem("settings");
                     setToken(null); setUser(null); Api.setToken(null);
                 }
-            } else { setUser(null); }
+            } else {
+                // Rehydrate the in-memory access token from the httpOnly refresh cookie.
+                await silentRefresh();
+            }
             setLoading(false);
         };
         run();
@@ -101,7 +102,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!newToken) throw new Error("Access token is required");
         try {
             const decoded = jwtDecode<JwtPayload>(newToken);
-            localStorage.setItem("token", newToken);
             localStorage.removeItem("settings");
             setToken(newToken); Api.setToken(newToken);
             setUser(decoded);
@@ -109,7 +109,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             scheduleRefresh(newToken);
         } catch (error) {
             console.error("Invalid access token:", error);
-            localStorage.removeItem("token");
             setToken(null); setUser(null); Api.setToken(null);
             throw error;
         }
@@ -117,8 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = async () => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-        const hasToken = localStorage.getItem("token");
-        localStorage.removeItem("token");
+        const hasToken = Boolean(token);
         setToken(null); setUser(null); Api.setToken(null);
         if (hasToken) {
             try { await Api.post('/auth/logout', {}); }

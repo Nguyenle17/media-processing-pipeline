@@ -38,12 +38,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   refreshToken(
     @Req() req: RequestWithCookies,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<{ accessToken: string }> {
     const token = req.cookies?.[REFRESH_COOKIE_NAME];
     if (!token) {
       throw new UnauthorizedException('No refresh token provided');
     }
-    return this.authService.refreshToken(token);
+    return this.authService.refreshToken(token, res);
   }
 
   @Post('logout')

@@ -32,6 +32,7 @@ import { Model, Types } from 'mongoose';
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 const CHUNK_DURATION_SECONDS = 60 * 5;
 const FETCH_TIMEOUT_MS = 30_000;
+const MAX_TTS_CHARS = 2_000;
 
 function isWhisperModel(value: unknown): value is WhisperModel {
   return (
@@ -161,15 +162,19 @@ export class VideoService {
   }
 
   async checkGrammar(data: GrammarDto): Promise<{ correctedText: string }> {
-    const response = await fetch(`${process.env.AI_URI}/grammar`, {
+    const aiUri = process.env.AI_URI?.replace(/\/$/, '');
+    const aiToken = process.env.AI_SERVICE_TOKEN;
+    if (!aiUri || !aiToken) throw new Error('AI service is not configured');
+
+    const response = await fetch(`${aiUri}/grammar`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-AI-Service-Token': aiToken },
       body: JSON.stringify({ text: data.text }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
-      throw new Error(`Grammar service error: ${await response.text()}`);
+      throw new Error(`Grammar service error (${response.status})`);
     }
 
     const json = (await response.json()) as GrammarResponse;
@@ -189,16 +194,26 @@ export class VideoService {
 
     if (!text) throw new BadRequestException('text must not be empty');
     if (!language) throw new BadRequestException('language must not be empty');
+    if (text.length > MAX_TTS_CHARS) {
+      throw new BadRequestException(`text must not exceed ${MAX_TTS_CHARS} characters`);
+    }
 
-    const response = await fetch(`${process.env.AI_URI}/text-to-speech`, {
+    const aiUri = process.env.AI_URI?.replace(/\/$/, '');
+    const aiToken = process.env.AI_SERVICE_TOKEN;
+    if (!aiUri || !aiToken) throw new Error('AI service is not configured');
+
+    const response = await fetch(`${aiUri}/text-to-speech`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-AI-Service-Token': aiToken,
+      },
       body: JSON.stringify({ text, lang: language }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
-      throw new Error(`TTS service error: ${await response.text()}`);
+      throw new Error(`TTS service error (${response.status})`);
     }
 
     const audioBuffer = Buffer.from(await response.arrayBuffer());
@@ -227,6 +242,45 @@ export class VideoService {
     });
 
     return { audioBuffer, filename };
+  }
+
+  async getTssHistory(
+    page: number,
+    limit: number,
+    search: string,
+    userId: string,
+  ): Promise<{ items: Video[]; totalItems: number; totalPages: number }> {
+    const query: Record<string, unknown> = {
+      userId: new Types.ObjectId(userId),
+    };
+
+    const items = await this.videoModel
+      .find({
+        userId: new Types.ObjectId(userId),
+        title: { $regex: search, $options: 'i' },
+      })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .exec();
+    const totalItems = await this.videoModel.countDocuments(query).exec();
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return { items, totalItems, totalPages };
+  }
+
+  async deleteTtsHistory(id: string, userId: string): Promise<void> {
+    const video = await this.videoModel.findOne({
+      _id: new Types.ObjectId(id),
+      userId: new Types.ObjectId(userId),
+    });
+
+    if (!video) {
+      throw new NotFoundException('TTS history item not found');
+    }
+
+    await this.cloudinaryService.deleteFile(video.cloudinaryPublicId);
+    await this.videoModel.deleteOne({ _id: video._id }).exec();
   }
 
   private resolveRange(

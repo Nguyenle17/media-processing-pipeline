@@ -149,7 +149,10 @@ export class AuthService {
     return this.toPublicUser(user);
   }
 
-  async refreshToken(refreshToken: string): Promise<{ accessToken: string }> {
+  async refreshToken(
+    refreshToken: string,
+    res: Response,
+  ): Promise<{ accessToken: string }> {
     const payload = await this.verifyRefreshToken(refreshToken);
     if (!payload) {
       throw new UnauthorizedException('Invalid refresh token');
@@ -167,6 +170,8 @@ export class AuthService {
       throw new UnauthorizedException('Account is banned');
     }
 
+    const rotatedRefreshToken = await this.issueRefreshToken(user);
+    setRefreshCookie(res, rotatedRefreshToken);
     return { accessToken: this.signAccessToken(user) };
   }
 

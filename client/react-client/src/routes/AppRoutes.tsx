@@ -5,6 +5,7 @@ import Login from '../pages/Login'
 import Register from '../pages/Register'
 import Translate from '../pages/Translate'
 import ExtractAudio from '../pages/ExtractAudio'
+import TtsHistory from '../pages/TtsHistory'
 import History from '../pages/History'
 import OAuthSuccess from '../pages/OauthSuccess'
 import Settings from '../pages/Settings'
@@ -22,6 +23,7 @@ export default function AppRoutes() {
         <Route path="/register" element={<Register />} />
         <Route path="/translate" element={<Translate />} />
         <Route path="/extract-audio" element={<ExtractAudio />} />
+        <Route path="/tts-history" element={<TtsHistory />} />
         <Route path="/history" element={<History />} />
         <Route path="/auth/callback" element={<OAuthSuccess />} />
         <Route path="/settings" element={<Settings />} />

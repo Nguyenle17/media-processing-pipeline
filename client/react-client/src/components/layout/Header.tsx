@@ -4,9 +4,9 @@ import { useAuth } from "../../hooks/useAuth";
 import { useClickOutside } from "../../hooks/useClickOutside";
 import {
     History,
-    FolderKanban,
     Languages,
     Settings,
+    Volume2,
     Menu,
     X
 } from "lucide-react";
@@ -39,8 +39,7 @@ export default function Header() {
         ];
         menuItems = [
             { to: '/history', icon: History, label: 'History' },
-            { to: '/projects', icon: FolderKanban, label: 'My Videos' },
-            { to: '/translate', icon: Languages, label: 'Translate' },
+            { to: '/tts-history', icon: Volume2, label: 'TTS History' },
             { to: '/settings', icon: Settings, label: 'Settings' },
         ];
     }

@@ -2,3 +2,12 @@
 # Generated media chunks
 server/nest-server/uploads/
 
+# Local secrets and runtime files
+.env
+.env.*
+!.env.example
+client/react-client/.env
+server/nest-server/.env
+python-server/.env
+__pycache__/
+

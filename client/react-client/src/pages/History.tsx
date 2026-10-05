@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Check, CheckCircle, Clipboard, Clock, Download, FileText, Languages, ListVideo, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle, Clipboard, Clock, Download, FileText, Languages, ListVideo, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useFileDownload } from '../hooks/useFileDownload';
 import Modal from '../components/common/Modal';
 import Pagination from '../components/common/Pagination';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { translationHistoryApi, TranslationHistoryItem } from '../api/translationHistory';
+import SearchInput from '../components/common/SearchInput';
 
 type TextMode = 'original' | 'translated';
 
@@ -86,7 +87,7 @@ export default function History() {
     <div className="history-container fade-in p-6 max-w-7xl mx-auto h-[calc(100vh-80px)] flex flex-col">
       <div className="flex flex-wrap justify-between items-end gap-4 mb-6">
         <div><h1 className="vs-section-title text-3xl font-bold mb-2 flex items-center gap-3"><Languages size={28} className="text-indigo-400" /> Translate history</h1><p className="text-gray-400">Xem lại text gốc và bản translate của từng video.</p></div>
-        <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={17} /><input className="vs-search-input pl-10" placeholder="Tìm theo tên file..." value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></div>
+        <div className="relative"><SearchInput placeholder="Tìm theo tên file..." value={search} onChange={setSearch} /></div>
       </div>
 
       <div className="history-layout flex gap-6 flex-1 min-h-0">

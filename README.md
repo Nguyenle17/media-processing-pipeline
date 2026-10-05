@@ -263,7 +263,11 @@ npm run start:dev
 | Biến | Mô tả | Ví dụ |
 |---|---|---|
 | `AI_URI` | URL của Python AI Server | `http://localhost:5000` |
-| `JWT_SECRET` | Secret key cho JWT | `your-secret-key` |
+| `AI_SERVICE_TOKEN` | Token nội bộ giữa NestJS và Python AI Server; phải giống nhau ở hai service | chuỗi ngẫu nhiên dài |
+| `JWT_SECRET` | Secret key cho access JWT; không commit vào Git | chuỗi ngẫu nhiên dài |
+| `JWT_REFRESH_SECRET` | Secret key riêng cho refresh JWT; không dùng lại `JWT_SECRET` | chuỗi ngẫu nhiên dài khác |
+
+Access token chỉ tồn tại trong bộ nhớ trình duyệt. Refresh token nằm trong cookie `httpOnly`, được lưu dạng hash trong database và được xoay vòng sau mỗi lần refresh. Hãy tạo token mới nếu các secret cũ từng xuất hiện trong log, file `.env` hoặc lịch sử Git.
 
 ---
 
