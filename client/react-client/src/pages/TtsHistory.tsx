@@ -48,7 +48,7 @@ export default function TtsHistory() {
       const list = Array.isArray(response.items) ? response.items : [];
       setItems(list);
       setTotalPages(response.totalPages || 1);
-      setSelected((current) => list.find((item) => item.id === current?.id) ?? current);
+      setSelected((current) => list.find((item) => item.id === current?.id) ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không thể tải lịch sử TTS.');
     } finally {
@@ -83,7 +83,7 @@ export default function TtsHistory() {
       link.href = blobUrl;
       link.download = `tts_${selected.language || 'audio'}_${selected.id}.mp3`;
       link.click();
-      URL.revokeObjectURL(blobUrl);
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch {
       setError('Không thể tải audio.');
     } finally {
@@ -223,7 +223,6 @@ export default function TtsHistory() {
                   <div className="text-xs text-gray-500 mt-2">
                     {formatDate(selected.createdAt)}
                     {selected.language ? ` • ${selected.language}` : ''}
-                    {selected.voice ? ` • ${selected.voice}` : ''}
                     {selected.duration != null && selected.duration > 0
                       ? ` • ${formatDuration(selected.duration)}`
                       : ''}

@@ -20,6 +20,7 @@ import {
   TranslateVideoDto,
   GrammarDto,
   TextToSpeechDto,
+  TtsHistoryQueryDto,
 } from './dto/video.dto';
 import { FileService } from '../file/file.service';
 import { JobService } from '../job/job.service';
@@ -234,6 +235,7 @@ export class VideoService {
       userId: new Types.ObjectId(userId),
       title: `TTS_${language}`,
       content: text,
+      language,
       originalFilename: filename,
       type: 'audio',
       cloudinaryPublicId: cloudinaryResult.public_id,
@@ -245,31 +247,66 @@ export class VideoService {
   }
 
   async getTssHistory(
-    page: number,
-    limit: number,
-    search: string,
+    query: TtsHistoryQueryDto,
     userId: string,
-  ): Promise<{ items: Video[]; totalItems: number; totalPages: number }> {
-    const query: Record<string, unknown> = {
+  ): Promise<{
+    items: Array<{
+      id: string;
+      title: string;
+      originalText: string;
+      language?: string;
+      audioUrl: string;
+      duration: number;
+      createdAt: Date;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 8;
+    const search = (query.search ?? '').trim();
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const filter: Record<string, unknown> = {
       userId: new Types.ObjectId(userId),
+      type: 'audio',
     };
+    if (escapedSearch) {
+      const expression = { $regex: escapedSearch, $options: 'i' };
+      filter.$or = [{ title: expression }, { content: expression }, { language: expression }];
+    }
 
     const items = await this.videoModel
-      .find({
-        userId: new Types.ObjectId(userId),
-        title: { $regex: search, $options: 'i' },
-      })
+      .find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .exec();
-    const totalItems = await this.videoModel.countDocuments(query).exec();
-    const totalPages = Math.ceil(totalItems / limit);
+    const total = await this.videoModel.countDocuments(filter).exec();
+    const totalPages = Math.max(1, Math.ceil(total / limit));
 
-    return { items, totalItems, totalPages };
+    return {
+      items: items.map((item) => ({
+        id: String(item._id),
+        title: item.title,
+        originalText: item.content,
+        language: item.language,
+        audioUrl: item.cloudinaryUrl,
+        duration: item.duration,
+        createdAt: item.createdAt,
+      })),
+      total,
+      page,
+      limit,
+      totalPages,
+    };
   }
 
   async deleteTtsHistory(id: string, userId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException('TTS history item not found');
+    }
     const video = await this.videoModel.findOne({
       _id: new Types.ObjectId(id),
       userId: new Types.ObjectId(userId),

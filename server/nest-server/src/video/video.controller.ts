@@ -23,6 +23,7 @@ import {
   TextToSpeechDto,
   TranscribeVideoDto,
   TranslateVideoDto,
+  TtsHistoryQueryDto,
 } from './dto/video.dto';
 import type { AuthenticatedVideoRequest } from './interfaces/video.interface';
 
@@ -78,14 +79,10 @@ export class VideoController {
   @Get('tts/history')
   async getTtsHistory(
     @Req() req: AuthenticatedVideoRequest,
-    @Query('page') page = 1,
-    @Query('limit') limit = 6,
-    @Query('search') search = '',
+    @Query() query: TtsHistoryQueryDto,
   ) {
     return this.videoService.getTssHistory(
-      page,
-      limit,
-      search,
+      query,
       req.user.userId,
     );
   }

@@ -23,6 +23,9 @@ export class Video {
   @Prop({ required: true, enum: MEDIA_TYPES, default: 'video' })
   type!: MediaType;
 
+  @Prop({ trim: true })
+  language?: string;
+
   @Prop({ required: true, unique: true })
   cloudinaryPublicId!: string;
 

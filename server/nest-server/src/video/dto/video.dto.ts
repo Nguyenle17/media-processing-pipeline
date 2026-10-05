@@ -4,6 +4,8 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { TRANSCRIBE_MODES } from '../types/video.type';
@@ -57,4 +59,24 @@ export class TextToSpeechDto {
   @IsString()
   @IsNotEmpty()
   language!: string;
+}
+
+export class TtsHistoryQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  limit = 8;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search = '';
 }

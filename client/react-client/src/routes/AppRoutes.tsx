@@ -23,7 +23,7 @@ export default function AppRoutes() {
         <Route path="/register" element={<Register />} />
         <Route path="/translate" element={<Translate />} />
         <Route path="/extract-audio" element={<ExtractAudio />} />
-        <Route path="/tts-history" element={<TtsHistory />} />
+        <Route path="/tts-history" element={<ProtectedRoute><TtsHistory /></ProtectedRoute>} />
         <Route path="/history" element={<History />} />
         <Route path="/auth/callback" element={<OAuthSuccess />} />
         <Route path="/settings" element={<Settings />} />

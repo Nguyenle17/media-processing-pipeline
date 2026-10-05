@@ -4,12 +4,8 @@ export interface TtsHistoryItem {
   id: string;
   title: string;
   originalText: string;
-  audioUrl: string; 
-  cloudinaryPublicId: string;
-  originalFilename: string;
-  type: 'video' | 'audio';
+  audioUrl: string;
   language?: string;
-  voice?: string;
   duration?: number;
   createdAt: string;
 }
@@ -39,6 +35,7 @@ interface RawTtsItem {
 
 interface RawTtsHistoryResponse {
   items?: RawTtsItem[];
+  total?: number;
   totalItems?: number;
   totalPages?: number;
 }
@@ -57,11 +54,7 @@ function normalizeItem(raw: RawTtsItem): TtsHistoryItem {
     title: raw.title ?? '',
     originalText: raw.content ?? '',
     audioUrl: raw.cloudinaryUrl ?? '',
-    cloudinaryPublicId: raw.cloudinaryPublicId ?? '',
-    originalFilename: raw.originalFilename ?? '',
-    type: raw.type ?? 'audio',
     language: extractLanguage(raw),
-    voice: raw.voice,
     duration: raw.duration,
     createdAt: raw.createdAt ?? '',
   };
@@ -77,7 +70,7 @@ export const ttsHistoryApi = {
     const raw: RawTtsHistoryResponse = await Api.get(`/video/tts/history?${params.toString()}`);
 
     const items = (raw.items ?? []).map(normalizeItem);
-    const total = raw.totalItems ?? items.length;
+    const total = raw.total ?? raw.totalItems ?? items.length;
 
     return {
       items,
