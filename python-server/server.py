@@ -6,6 +6,7 @@ import threading
 import asyncio
 import re
 import hmac
+import logging
 
 import torch
 import whisper
@@ -30,9 +31,19 @@ else:
     torch.set_num_threads(2)  # chỉ có ý nghĩa khi chạy CPU
 
 app = Flask(__name__)
-AI_SERVICE_TOKEN = os.environ.get("AI_SERVICE_TOKEN")
-if not AI_SERVICE_TOKEN:
-    raise RuntimeError("AI_SERVICE_TOKEN must be configured")
+
+# The AI service is private by default. Set AI_BIND_HOST=0.0.0.0 only when
+# NestJS runs in another container/host protected by a private network.
+AI_BIND_HOST = os.environ.get("AI_BIND_HOST", "127.0.0.1")
+AI_PORT = int(os.environ.get("AI_PORT", "5000"))
+AI_SERVICE_TOKEN = os.environ.get("AI_SERVICE_TOKEN", "")
+if len(AI_SERVICE_TOKEN) < 32:
+    raise RuntimeError("AI_SERVICE_TOKEN must be at least 32 characters")
+
+app.config["MAX_CONTENT_LENGTH"] = int(
+    os.environ.get("AI_MAX_REQUEST_BYTES", str(512 * 1024 * 1024))
+)
+app.logger.setLevel(logging.INFO)
 
 WHISPER_NAMES = ("tiny", "base", "small", "medium", "large")
 WHISPER_DEFAULT = "small"
@@ -116,12 +127,21 @@ def normalize_lang(code: str) -> str:
 
 @app.before_request
 def require_internal_token():
-    if request.path == "/health":
-        return None
     supplied = request.headers.get("X-AI-Service-Token", "")
     if not hmac.compare_digest(supplied, AI_SERVICE_TOKEN):
         return jsonify({"error": "Unauthorized"}), 401
     return None
+
+
+@app.errorhandler(413)
+def request_too_large(_error):
+    return jsonify({"error": "Request is too large"}), 413
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    app.logger.error("Unhandled AI service error", exc_info=error)
+    return jsonify({"error": "AI service failure"}), 500
 
 
 def convert_to_wav(input_path: str) -> str:
@@ -386,4 +406,6 @@ def text_speech():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, threaded=True)
+    # Flask's built-in server is for local development only. Production should
+    # run this WSGI app behind a production server and a private firewall.
+    app.run(host=AI_BIND_HOST, port=AI_PORT, threaded=True, debug=False)
