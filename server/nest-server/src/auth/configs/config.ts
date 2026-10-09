@@ -23,8 +23,8 @@ export const REFRESH_COOKIE_NAME = 'refresh_token';
 
 const refreshCookieOptions = (): CookieOptions => ({
   httpOnly: true,
-  secure: isProduction(),
-  sameSite: 'lax',
+  secure: isProduction() || process.env.AUTH_COOKIE_SECURE === 'true',
+  sameSite: (process.env.AUTH_COOKIE_SAMESITE as CookieOptions['sameSite']) || 'lax',
   path: '/',
 });
 

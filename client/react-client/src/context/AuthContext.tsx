@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useRef, ReactNode } from "react";
+import { createContext, useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { jwtDecode } from "jwt-decode";
 import Api from "../api/Api";
 
@@ -31,6 +31,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<JwtPayload | null>(null);
     const [loading, setLoading] = useState(true);
     const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    const clearSession = useCallback(() => {
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+        localStorage.removeItem('settings');
+        setToken(null);
+        setUser(null);
+        Api.setToken(null);
+    }, []);
 
     const syncSettings = async (fallback?: unknown) => {
         try {
@@ -67,9 +75,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             await syncSettings(decoded.settings);
             scheduleRefresh(newToken);
         } catch {
-            setToken(null); setUser(null); Api.setToken(null);
+            clearSession();
         }
     };
+
+    useEffect(() => {
+        Api.setLogoutCallback(clearSession);
+        return () => Api.setLogoutCallback(undefined);
+    }, [clearSession]);
 
     useEffect(() => {
         const run = async () => {
@@ -86,8 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         scheduleRefresh(token);
                     }
                 } catch {
-                    localStorage.removeItem("settings");
-                    setToken(null); setUser(null); Api.setToken(null);
+                    clearSession();
                 }
             } else {
                 // Rehydrate the in-memory access token from the httpOnly refresh cookie.
@@ -109,19 +121,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             scheduleRefresh(newToken);
         } catch (error) {
             console.error("Invalid access token:", error);
-            setToken(null); setUser(null); Api.setToken(null);
+            clearSession();
             throw error;
         }
     };
 
     const logout = async () => {
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-        const hasToken = Boolean(token);
-        setToken(null); setUser(null); Api.setToken(null);
-        if (hasToken) {
-            try { await Api.post('/auth/logout', {}); }
-            catch { console.error("Logout failed."); }
-        }
+        try { await Api.post('/auth/logout', {}); }
+        catch { /* The local session is cleared even if the server is unavailable. */ }
+        finally { clearSession(); }
     };
 
     if (loading) return null;

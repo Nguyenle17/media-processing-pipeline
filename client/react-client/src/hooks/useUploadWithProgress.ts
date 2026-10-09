@@ -12,37 +12,49 @@ export function useUploadWithProgress() {
       setIsUploading(true);
       setProgress(0);
 
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${BASE_URL}${endpoint}`);
-      xhr.withCredentials = true;
-      xhr.setRequestHeader('Authorization', `Bearer ${Api.token}`);
+      const send = (attempt: number) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${BASE_URL}${endpoint}`);
+        xhr.withCredentials = true;
+        if (Api.token) xhr.setRequestHeader('Authorization', `Bearer ${Api.token}`);
 
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          setProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      };
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+        };
 
-      xhr.onload = () => {
-        setIsUploading(false);
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(JSON.parse(xhr.responseText));
-        } else {
+        xhr.onload = async () => {
+          if (xhr.status === 401 && attempt === 0 && Api.token) {
+            try {
+              await Api.refreshToken();
+              send(1);
+              return;
+            } catch { /* report the original upload failure below */ }
+          }
+
+          setIsUploading(false);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(xhr.responseText ? JSON.parse(xhr.responseText) : undefined); }
+            catch { reject(new Error('Invalid upload response')); }
+            return;
+          }
+
           let message = `Upload failed: ${xhr.status}`;
           try {
             const body = JSON.parse(xhr.responseText);
             message = body.message || body.error || message;
           } catch { /* keep the HTTP status */ }
           reject(new Error(message));
-        }
+        };
+
+        xhr.onerror = () => {
+          setIsUploading(false);
+          reject(new Error('Network error'));
+        };
+
+        xhr.send(formData);
       };
 
-      xhr.onerror = () => {
-        setIsUploading(false);
-        reject(new Error('Network error'));
-      };
-
-      xhr.send(formData);
+      send(0);
     });
   }, []);
 

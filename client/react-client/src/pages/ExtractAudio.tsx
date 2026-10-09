@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
 import LanguagePicker from '../components/common/LanguagePicker';
 import { LANGUAGES, getLanguageByCode } from '../constants/languages';
 import Api from '../api/Api';
 import { Volume2, Trash2, Download, AlertTriangle, PenTool, Type, FileAudio } from 'lucide-react';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 export default function ExtractAudio() {
-  const { token } = useAuth();
   const [text, setText] = useState<string>('');
   const [targetLang, setTargetLang] = useState<string>('en');
   const [audioURL, setAudioURL] = useState<string | null>(null);
@@ -25,35 +21,13 @@ export default function ExtractAudio() {
     setAudioURL(null);
 
     try {
-      const response = await fetch(`${BASE_URL}/video/tts`, {
+      const response = await Api.raw('/video/tts', {
         method: 'POST',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ text: text.trim(), language: targetLang })
       });
-      if (!response.ok) {
-        if (response.status === 401 && token) {
-          const newToken = await Api.refreshToken();
-          const retry = await fetch(`${BASE_URL}/video/tts`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${newToken}`,
-            },
-              body: JSON.stringify({ text: text.trim(), language: targetLang }),
-          });
-          if (retry.ok) {
-            const blob = await retry.blob();
-            setAudioURL(URL.createObjectURL(blob));
-            return;
-          }
-        }
-        throw new Error(`TTS failed with status ${response.status}`);
-      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       setAudioURL(url);

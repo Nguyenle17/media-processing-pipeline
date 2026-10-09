@@ -1,14 +1,10 @@
 import io
+import gc
 import os
 import tempfile
 import subprocess
 import threading
 import asyncio
-import re
-import hmac
-import logging
-
-from dotenv import load_dotenv
 
 import torch
 import whisper
@@ -21,8 +17,6 @@ from transformers import (
     M2M100ForConditionalGeneration,
 )
 
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
-
 # ============================================================
 # CONFIG
 # ============================================================
@@ -32,31 +26,14 @@ print(f"Using device: {DEVICE}")
 if DEVICE == "cuda":
     print(f"GPU: {torch.cuda.get_device_name(0)}")
 else:
-    torch.set_num_threads(2)  # chỉ có ý nghĩa khi chạy CPU
+    torch.set_num_threads(2)
 
 app = Flask(__name__)
 
-# The AI service is private by default. Set AI_BIND_HOST=0.0.0.0 only when
-# NestJS runs in another container/host protected by a private network.
-AI_BIND_HOST = os.environ.get("AI_BIND_HOST", "127.0.0.1")
-AI_PORT = int(os.environ.get("AI_PORT", "5000"))
-AI_SERVICE_TOKEN = os.environ.get("AI_SERVICE_TOKEN", "")
-if len(AI_SERVICE_TOKEN) < 32:
-    raise RuntimeError("AI_SERVICE_TOKEN must be at least 32 characters")
-
-app.config["MAX_CONTENT_LENGTH"] = int(
-    os.environ.get("AI_MAX_REQUEST_BYTES", str(512 * 1024 * 1024))
-)
-
-app.logger.setLevel(logging.INFO)
-
-WHISPER_NAMES = ("tiny", "base", "small", "medium", "large")
+WHISPER_NAMES = tuple(whisper.available_models())
 WHISPER_DEFAULT = "small"
-MAX_TTS_CHARS = 2000
-SUPPORTED_TRANSLATION_LANGS = {
-    "vi", "en", "zh", "ko", "ja", "fr", "de", "es",
-}
 
+# Lock bảo vệ cả việc load/đổi model lẫn transcribe (1 model trên GPU tại 1 thời điểm)
 whisper_lock = threading.Lock()
 grammar_lock = threading.Lock()
 translate_lock = threading.Lock()
@@ -64,24 +41,29 @@ translate_lock = threading.Lock()
 # ============================================================
 # MODELS
 # ============================================================
-
-# --- Whisper: lazy load, chỉ giữ model nào được dùng (tránh OOM VRAM) ---
-_whisper_cache = {}
-_whisper_cache_lock = threading.Lock()
+_current = {"name": None, "model": None}
 
 
 def get_whisper(name: str):
-    if name not in WHISPER_NAMES:
-        name = WHISPER_DEFAULT
-    with _whisper_cache_lock:
-        if name not in _whisper_cache:
-            print(f"Loading Whisper '{name}' on {DEVICE}...")
-            _whisper_cache[name] = whisper.load_model(name, device=DEVICE)
-        return _whisper_cache[name]
+    """PHẢI gọi bên trong whisper_lock."""
+    if _current["name"] != name:
+        # Giải phóng model cũ trước khi load model mới
+        _current["model"] = None
+        _current["name"] = None
+        gc.collect()
+        if DEVICE == "cuda":
+            torch.cuda.empty_cache()
+
+        print(f"Loading Whisper '{name}' on {DEVICE}...")
+        _current["model"] = whisper.load_model(name, device=DEVICE)
+        _current["name"] = name
+        print(f"Whisper '{name}' ready.")
+    return _current["model"]
 
 
 print("Loading default Whisper model...")
-get_whisper(WHISPER_DEFAULT)
+with whisper_lock:
+    get_whisper(WHISPER_DEFAULT)
 
 # --- Grammar (T5): giữ fp32 cho ổn định ---
 print("Loading grammar model...")
@@ -133,25 +115,6 @@ def normalize_lang(code: str) -> str:
     return code.split("-")[0] if code else code
 
 
-@app.before_request
-def require_internal_token():
-    supplied = request.headers.get("X-AI-Service-Token", "")
-    if not hmac.compare_digest(supplied, AI_SERVICE_TOKEN):
-        return jsonify({"error": "Unauthorized"}), 401
-    return None
-
-
-@app.errorhandler(413)
-def request_too_large(_error):
-    return jsonify({"error": "Request is too large"}), 413
-
-
-@app.errorhandler(Exception)
-def handle_unexpected_error(error):
-    app.logger.error("Unhandled AI service error", exc_info=error)
-    return jsonify({"error": "AI service failure"}), 500
-
-
 def convert_to_wav(input_path: str) -> str:
     wav_path = input_path + ".wav"
     subprocess.run(
@@ -168,8 +131,6 @@ def detect_language(text: str) -> str:
         clean = (text or "").replace("\n", " ").strip()
         if len(clean) < 5:
             return "en"
-        # Dùng model.f.predict để tránh lỗi numpy 2.x của fasttext.predict()
-        # kết quả dạng [(prob, "__label__vi")]
         label = model_lang.f.predict(clean, 1, 0.0, "strict")[0][1]
         return label.replace("__label__", "")
     except Exception as e:
@@ -189,41 +150,22 @@ def translate_text(text: str, target_lang: str, source_lang: str = None) -> str:
     if src == tgt:
         return text
 
-    # M2M100 chỉ nhận được khoảng 512 tokens mỗi lần. Chia theo câu để không
-    # làm mất phần cuối của transcript dài.
-    sentences = re.split(r"(?<=[.!?。！？])\s+", text.strip())
-    parts = []
-    current = ""
-    for sentence in sentences:
-        candidate = f"{current} {sentence}".strip()
-        if current and len(tokenizer_M2M100(candidate, add_special_tokens=True)["input_ids"]) > 450:
-            parts.append(current)
-            current = sentence
-        else:
-            current = candidate
-    if current:
-        parts.append(current)
-
     # tokenizer.src_lang là state dùng chung -> tokenize + generate cùng trong lock
     with translate_lock:
         tokenizer_M2M100.src_lang = src
+        inputs = tokenizer_M2M100(
+            text, return_tensors="pt", truncation=True, max_length=512
+        ).to(DEVICE)
         forced_bos_token_id = tokenizer_M2M100.get_lang_id(tgt)
-        translated_parts = []
-        for part in parts:
-            inputs = tokenizer_M2M100(
-                part, return_tensors="pt", truncation=True, max_length=512
-            ).to(DEVICE)
-            with torch.inference_mode():
-                generated = model_translate.generate(
-                    **inputs,
-                    forced_bos_token_id=forced_bos_token_id,
-                    max_length=512,
-                )
-            translated_parts.append(
-                tokenizer_M2M100.batch_decode(generated, skip_special_tokens=True)[0]
+
+        with torch.inference_mode():
+            generated = model_translate.generate(
+                **inputs,
+                forced_bos_token_id=forced_bos_token_id,
+                max_length=512,
             )
 
-    result = " ".join(translated_parts)
+    result = tokenizer_M2M100.batch_decode(generated, skip_special_tokens=True)[0]
     print(f"[translate] {src} -> {tgt}: '{text[:50]}' -> '{result[:50]}'")
     return result
 
@@ -259,7 +201,8 @@ def synthesize_mp3(text: str, voice: str, retries: int = 2) -> bytes:
 def health():
     return jsonify({
         "device": DEVICE,
-        "whisper_loaded": list(_whisper_cache.keys()),
+        "whisper_loaded": _current["name"],
+        "whisper_available": list(WHISPER_NAMES),
     })
 
 
@@ -268,7 +211,13 @@ def transcribe():
     if "file" not in request.files:
         return jsonify({"error": "No file field in request"}), 400
 
-    model_type = request.form.get("type", WHISPER_DEFAULT).lower()
+    model_type = request.form.get("type", WHISPER_DEFAULT).strip().lower()
+    if model_type not in WHISPER_NAMES:
+        return jsonify({
+            "error": f"Unknown model '{model_type}'",
+            "available": list(WHISPER_NAMES),
+        }), 400
+
     language = request.form.get("language") or None  # tuỳ chọn, None = auto
 
     upload = request.files["file"]
@@ -280,8 +229,9 @@ def transcribe():
     wav_path = None
     try:
         wav_path = convert_to_wav(raw_path)
-        model = get_whisper(model_type)
+
         with whisper_lock:
+            model = get_whisper(model_type)
             result = model.transcribe(wav_path, fp16=USE_FP16, language=language)
 
         segments = [
@@ -293,10 +243,22 @@ def transcribe():
             for seg in result.get("segments", [])
         ]
         return jsonify({
+            "model": model_type,
             "text": result.get("text", ""),
             "segments": segments,
             "language": result.get("language", "unknown"),
         })
+    except torch.cuda.OutOfMemoryError:
+        app.logger.error(f"CUDA OOM with model '{model_type}'")
+        with whisper_lock:
+            _current["model"] = None
+            _current["name"] = None
+        gc.collect()
+        torch.cuda.empty_cache()
+        return jsonify({
+            "error": f"Not enough GPU memory for model '{model_type}'. "
+                     f"Try a smaller model."
+        }), 507
     except subprocess.CalledProcessError as e:
         app.logger.error(f"ffmpeg error: {e.stderr.decode(errors='ignore')}")
         return jsonify({"error": "Cannot decode audio file"}), 400
@@ -343,8 +305,6 @@ def translate():
 
     if not text:
         return jsonify({"error": "No text provided"}), 400
-    if target_lang not in SUPPORTED_TRANSLATION_LANGS:
-        return jsonify({"error": "Unsupported target language"}), 400
 
     try:
         source_lang = detect_language(text)
@@ -355,8 +315,8 @@ def translate():
             "translated_text": translated_text,
         })
     except Exception as e:
-        app.logger.error("Translation failed", exc_info=True)
-        return jsonify({"error": "Translation failed"}), 502
+        app.logger.error(f"Translate error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/detect-language", methods=["POST"])
@@ -384,8 +344,6 @@ def text_speech():
 
     if not text:
         return jsonify({"error": "No text provided"}), 400
-    if len(text) > MAX_TTS_CHARS:
-        return jsonify({"error": "Text is too long"}), 400
     if not target_lang:
         return jsonify({"error": "No language provided"}), 400
 
@@ -411,11 +369,9 @@ def text_speech():
         return send_file(io.BytesIO(audio), mimetype="audio/mpeg")
 
     except Exception as e:
-        app.logger.error("TTS generation failed", exc_info=True)
-        return jsonify({"error": "TTS generation failed"}), 502
+        app.logger.error(f"TTS error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
-    # Flask's built-in server is for local development only. Production should
-    # run this WSGI app behind a production server and a private firewall.
-    app.run(host=AI_BIND_HOST, port=AI_PORT, threaded=True, debug=False)
+    app.run(host="0.0.0.0", port=5000, threaded=True)

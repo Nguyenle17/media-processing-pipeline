@@ -1,136 +1,114 @@
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+type RequestInitWithBody = RequestInit & { body?: BodyInit | null };
+
 class Api {
-    token: string | null;
-    BASE_URL: string;
-    onLogout?: () => void;
+    token: string | null = null;
+    readonly BASE_URL = BASE_URL;
+    private refreshPromise: Promise<string> | null = null;
+    private onLogout?: () => void;
 
-    constructor() {
+    setToken(token: string | null) { this.token = token; }
+
+    setLogoutCallback(callback: (() => void) | undefined) { this.onLogout = callback; }
+
+    private clearSession() {
         this.token = null;
-        this.BASE_URL = BASE_URL;
-    }
-
-    setToken(token: string | null) {
-        this.token = token;
-    }
-
-    setLogoutCallback(callback: () => void) {
-        this.onLogout = callback;
+        this.onLogout?.();
     }
 
     async refreshToken(): Promise<string> {
-        try {
-            const response = await fetch(this.BASE_URL + '/auth/refresh', {
+        if (this.refreshPromise) return this.refreshPromise;
+
+        this.refreshPromise = (async () => {
+            const response = await fetch(`${this.BASE_URL}/auth/refresh`, {
                 method: 'POST',
                 credentials: 'include',
+                headers: { Accept: 'application/json' },
             });
-            if (!response.ok) throw new Error('Refresh failed');
-            const result = await response.json();
+            let result: { accessToken?: string } = {};
+            try { result = await response.json(); } catch { /* handled below */ }
+            if (!response.ok || typeof result.accessToken !== 'string' || !result.accessToken) {
+                throw new Error('Session expired');
+            }
             this.token = result.accessToken;
             return result.accessToken;
-        } catch (error) {
-            this.token = null;
-            if (this.onLogout) this.onLogout();
+        })().catch((error) => {
+            this.clearSession();
             throw error;
-        }
+        }).finally(() => { this.refreshPromise = null; });
+
+        return this.refreshPromise;
     }
 
-    async get(ENDPOINT: string): Promise<any> {
-        const response = await fetch(this.BASE_URL + ENDPOINT, {
-            method: 'GET',
-            credentials: 'include',
-            headers: { 'Authorization': `Bearer ${this.token}` }
-        });
+    private async parseResponse<T>(response: Response): Promise<T> {
+        const body = await response.text();
+        let parsed: unknown;
+        if (body) {
+            try { parsed = JSON.parse(body); } catch { parsed = body; }
+        }
+        if (!response.ok) {
+            const data = parsed as { message?: string; error?: string } | undefined;
+            throw new Error(data?.message || data?.error || `${response.status} ${response.statusText}`);
+        }
+        return parsed as T;
+    }
 
-        if (response.status === 401 && this.token) {
+    private buildInit(init: RequestInitWithBody): RequestInit {
+        const headers = new Headers(init.headers);
+        headers.set('Accept', 'application/json');
+        if (this.token) headers.set('Authorization', `Bearer ${this.token}`);
+        return { ...init, headers, credentials: 'include' };
+    }
+
+    async request<T = any>(endpoint: string, init: RequestInitWithBody = {}, retry = true): Promise<T> {
+        const response = await fetch(`${this.BASE_URL}${endpoint}`, this.buildInit(init));
+        if (response.status === 401 && retry && this.token && endpoint !== '/auth/refresh') {
             await this.refreshToken();
-            return this.get(ENDPOINT);
+            return this.request<T>(endpoint, init, false);
         }
-
-        if (!response.ok) throw new Error(`GET ${ENDPOINT} failed: ${response.status}`);
-        return response.json();
+        return this.parseResponse<T>(response);
     }
 
-    async post(ENDPOINT: string, DATA: any, HEADERS: string = 'application/json'): Promise<any> {
-        const isFormData = DATA instanceof FormData;
+    async raw(endpoint: string, init: RequestInitWithBody = {}, retry = true): Promise<Response> {
+        const response = await fetch(`${this.BASE_URL}${endpoint}`, this.buildInit(init));
+        if (response.status === 401 && retry && this.token && endpoint !== '/auth/refresh') {
+            await this.refreshToken();
+            return this.raw(endpoint, init, false);
+        }
+        if (!response.ok) await this.parseResponse(response);
+        return response;
+    }
 
-        const response = await fetch(this.BASE_URL + ENDPOINT, {
+    get<T = any>(endpoint: string) { return this.request<T>(endpoint, { method: 'GET' }); }
+
+    post<T = any>(endpoint: string, data?: any, contentType = 'application/json') {
+        const isFormData = data instanceof FormData;
+        return this.request<T>(endpoint, {
             method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-                ...(!isFormData && { 'Content-Type': HEADERS }),
-            },
-            body: isFormData ? DATA : JSON.stringify(DATA),
+            headers: !isFormData ? { 'Content-Type': contentType } : undefined,
+            body: isFormData ? data : JSON.stringify(data ?? {}),
         });
-
-        if (response.status === 401 && this.token) {
-            await this.refreshToken();
-            return this.post(ENDPOINT, DATA, HEADERS);
-        }
-
-        if (!response.ok) throw new Error(`POST ${ENDPOINT} failed: ${response.status}`);
-        return response.json();
     }
 
-    async put(ENDPOINT: string, DATA: any): Promise<any> {
-        const isFormData = DATA instanceof FormData;
-
-        const response = await fetch(this.BASE_URL + ENDPOINT, {
+    put<T = any>(endpoint: string, data?: any) {
+        const isFormData = data instanceof FormData;
+        return this.request<T>(endpoint, {
             method: 'PUT',
-            credentials: 'include',
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-                ...(!isFormData && { 'Content-Type': 'application/json' }),
-            },
-            body: isFormData ? DATA : JSON.stringify(DATA),
+            headers: !isFormData ? { 'Content-Type': 'application/json' } : undefined,
+            body: isFormData ? data : JSON.stringify(data ?? {}),
         });
-
-        if (response.status === 401 && this.token) {
-            await this.refreshToken();
-            return this.put(ENDPOINT, DATA);
-        }
-
-        if (!response.ok) throw new Error(`PUT ${ENDPOINT} failed: ${response.status}`);
-        return response.json();
     }
 
-    async delete(ENDPOINT: string): Promise<any> {
-        const response = await fetch(this.BASE_URL + ENDPOINT, {
-            method: 'DELETE',
-            credentials: 'include',
-            headers: { 'Authorization': `Bearer ${this.token}` }
-        });
+    delete<T = any>(endpoint: string) { return this.request<T>(endpoint, { method: 'DELETE' }); }
 
-        if (response.status === 401 && this.token) {
-            await this.refreshToken();
-            return this.delete(ENDPOINT);
-        }
-
-        if (!response.ok) throw new Error(`DELETE ${ENDPOINT} failed: ${response.status}`);
-        return response.json();
-    }
-
-    async patch(ENDPOINT: string, DATA: any): Promise<any> {
-        const isFormData = DATA instanceof FormData;
-
-        const response = await fetch(this.BASE_URL + ENDPOINT, {
+    patch<T = any>(endpoint: string, data?: any) {
+        const isFormData = data instanceof FormData;
+        return this.request<T>(endpoint, {
             method: 'PATCH',
-            credentials: 'include',
-            headers: {
-                'Authorization': `Bearer ${this.token}`,
-                ...(!isFormData && { 'Content-Type': 'application/json' }),
-            },
-            body: isFormData ? DATA : JSON.stringify(DATA),
+            headers: !isFormData ? { 'Content-Type': 'application/json' } : undefined,
+            body: isFormData ? data : JSON.stringify(data ?? {}),
         });
-
-        if (response.status === 401 && this.token) {
-            await this.refreshToken();
-            return this.patch(ENDPOINT, DATA);
-        }
-
-        if (!response.ok) throw new Error(`PATCH ${ENDPOINT} failed: ${response.status}`);
-        return response.json();
     }
 }
 
