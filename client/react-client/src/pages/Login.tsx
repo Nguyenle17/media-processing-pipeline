@@ -18,12 +18,14 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
     const [error, setError] = useState('');
+    const [needsVerification, setNeedsVerification] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setNeedsVerification(false);
         setLoading(true);
 
         try {
@@ -39,9 +41,10 @@ export default function Login() {
             login(response.accessToken);
             navigate('/');
         } catch (err) {
-            setError(
-                'Login failed. Please check your credentials and try again.'
-            );
+            const message = err instanceof Error ? err.message : '';
+            const unverified = message.toLowerCase().includes('not verified');
+            setNeedsVerification(unverified);
+            setError(unverified ? 'Your email is not verified. We sent you a new verification link.' : message || 'Login failed. Please check your credentials and try again.');
             console.error('Login error:', err);
         } finally {
             setLoading(false);
@@ -134,6 +137,13 @@ export default function Login() {
                     {error && (
                         <div style={{ color: '#ef4444', fontSize: '12px', textAlign: 'center', background: 'rgba(239,68,68,0.1)', padding: '8px', borderRadius: '8px' }}>
                             {error}
+                            {needsVerification && (
+                                <div style={{ marginTop: '8px' }}>
+                                    <Link to="/verify-email" state={{ email }} style={{ color: '#fca5a5', textDecoration: 'underline' }}>
+                                        Need a verification link?
+                                    </Link>
+                                </div>
+                            )}
                         </div>
                     )}
 

@@ -48,8 +48,17 @@ class Api {
             try { parsed = JSON.parse(body); } catch { parsed = body; }
         }
         if (!response.ok) {
-            const data = parsed as { message?: string; error?: string } | undefined;
-            throw new Error(data?.message || data?.error || `${response.status} ${response.statusText}`);
+            const data = parsed as { message?: unknown; error?: unknown } | undefined;
+            const message = data?.message;
+            const error = data?.error;
+            const backendMessage = Array.isArray(message)
+                ? message.filter((item): item is string => typeof item === 'string').join('. ')
+                : typeof message === 'string'
+                    ? message
+                    : typeof error === 'string'
+                        ? error
+                        : undefined;
+            throw new Error(backendMessage || `${response.status} ${response.statusText}`);
         }
         return parsed as T;
     }

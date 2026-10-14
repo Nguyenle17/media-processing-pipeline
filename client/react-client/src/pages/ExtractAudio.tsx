@@ -157,5 +157,4 @@ export default function ExtractAudio() {
   );
 }
 
-// Ensure Wand2 is imported
-import { Wand2 } from 'lucide-react';
+

@@ -11,6 +11,7 @@ import { JobModule } from './job/job.module';
 import { RedisService } from './redis/redis.service';
 import { RedisModule } from './redis/redis.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { EmailModule } from './email/email.module';
 import * as path from 'path';
 
 const envFilePath = path.resolve(__dirname, '../.env');
@@ -43,6 +44,7 @@ dotenv.config({ path: envFilePath });
     RedisModule,
     AdminModule,
     CloudinaryModule,
+    EmailModule,
   ],
   providers: [RedisService],
 })

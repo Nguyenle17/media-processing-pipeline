@@ -77,6 +77,25 @@ export class UsersService {
     return this.userModel.find().select(SAFE_FIELDS).exec();
   }
 
+  findByVerificationToken(tokenHash: string) {
+    return this.userModel.findOne({
+      verificationTokenHash: tokenHash,
+    });
+  }
+
+  markEmailVerified(id: UserId) {
+    return this.userModel.findOneAndUpdate(
+      { _id: id },
+      {
+        $set: {
+          isVerified: true,
+          verificationTokenHash: null,
+          verificationTokenExpiresAt: null,
+        },
+      },
+      { new: true },
+    );
+  }
   private async updateById(
     id: UserId,
     update: {
@@ -92,6 +111,13 @@ export class UsersService {
       .select(SAFE_FIELDS)
       .exec();
     return this.assertFound(updated, id);
+  }
+
+  updateVerificationToken(id: UserId, tokenHash: string, expired: Date) {
+    return this.userModel.findByIdAndUpdate(id, {
+      verificationTokenHash: tokenHash,
+      verificationTokenExpiresAt: expired,
+    });
   }
 
   updateRefreshToken(id: UserId, token: string | null): Promise<UserDocument> {

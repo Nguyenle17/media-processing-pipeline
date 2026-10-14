@@ -23,9 +23,9 @@ export default function Register() {
         setLoading(true);
         try {
             await Api.post('/auth/register', { name, email, password });
-            navigate('/login', { state: { registered: true } });
+            navigate('/verify-email', { state: { email } });
         } catch (err) {
-            setError('Registration failed. Please try again.');
+            setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
             console.error('Registration error:', err);
         } finally {
             setLoading(false);

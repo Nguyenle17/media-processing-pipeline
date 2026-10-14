@@ -38,16 +38,12 @@ whisper_lock = threading.Lock()
 grammar_lock = threading.Lock()
 translate_lock = threading.Lock()
 
-# ============================================================
-# MODELS
-# ============================================================
 _current = {"name": None, "model": None}
 
 
 def get_whisper(name: str):
-    """PHẢI gọi bên trong whisper_lock."""
+    """Get Whisper model for transcribing audio."""
     if _current["name"] != name:
-        # Giải phóng model cũ trước khi load model mới
         _current["model"] = None
         _current["name"] = None
         gc.collect()
@@ -65,7 +61,6 @@ print("Loading default Whisper model...")
 with whisper_lock:
     get_whisper(WHISPER_DEFAULT)
 
-# --- Grammar (T5): giữ fp32 cho ổn định ---
 print("Loading grammar model...")
 GRAMMAR_REPO = "vennify/t5-base-grammar-correction"
 tokenizer_grammar = AutoTokenizer.from_pretrained(GRAMMAR_REPO)
@@ -73,7 +68,6 @@ model_grammar = (
     AutoModelForSeq2SeqLM.from_pretrained(GRAMMAR_REPO).to(DEVICE).eval()
 )
 
-# --- Translation (M2M100): fp16 trên GPU ---
 print("Loading translation model...")
 TRANSLATE_REPO = "facebook/m2m100_418M"
 tokenizer_M2M100 = AutoTokenizer.from_pretrained(TRANSLATE_REPO)
@@ -86,7 +80,6 @@ model_translate = (
     .eval()
 )
 
-# --- Language detection (fasttext, luôn chạy CPU) ---
 print("Loading language detection model...")
 model_lang = fasttext.load_model("lid.176.bin")
 
@@ -106,11 +99,8 @@ VOICE_MAP = {
 }
 
 
-# ============================================================
-# HELPERS
-# ============================================================
 def normalize_lang(code: str) -> str:
-    """Chuẩn hoá mã ngôn ngữ: 'zh-CN' / 'zh_tw' -> 'zh', 'en-US' -> 'en'."""
+    """Normalize language code (e.g., 'zh-CN' / 'zh_tw' -> 'zh', 'en-US' -> 'en')."""
     code = (code or "").strip().lower().replace("_", "-")
     return code.split("-")[0] if code else code
 
@@ -278,7 +268,6 @@ def grammar():
     if not text:
         return jsonify({"error": "No text provided"}), 400
     try:
-        # Model vennify yêu cầu prefix "grammar: "
         inputs = tokenizer_grammar(
             "grammar: " + text,
             return_tensors="pt",
@@ -330,13 +319,7 @@ def detect_language_route():
 
 @app.route("/text-to-speech", methods=["POST"])
 def text_speech():
-    """
-    Flow: detect language -> translate (nếu cần) -> TTS
-    Body:
-      - text: str (bắt buộc)
-      - lang: str (target language, bắt buộc)
-      - autoTranslate: bool (default true)
-    """
+    """Handle text-to-speech requests with optional translation."""
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     target_lang = normalize_lang(data.get("lang", "en"))
@@ -347,24 +330,20 @@ def text_speech():
     if not target_lang:
         return jsonify({"error": "No language provided"}), 400
 
-    # Kiểm tra voice TRƯỚC khi tốn công dịch
     voice = VOICE_MAP.get(target_lang)
     if not voice:
         return jsonify({"error": f"Unsupported language: {target_lang}"}), 400
 
     try:
-        # 1. Detect ngôn ngữ gốc
         source_lang = detect_language(text)
         print(f"[TTS] source={source_lang} target={target_lang} "
               f"autoTranslate={auto_translate}")
 
-        # 2. Translate nếu cần
         final_text = text
         if auto_translate and source_lang != target_lang:
             final_text = translate_text(text, target_lang, source_lang)
             print(f"[TTS] Translated: {final_text[:120]}")
 
-        # 3. TTS
         audio = synthesize_mp3(final_text, voice)
         return send_file(io.BytesIO(audio), mimetype="audio/mpeg")
 

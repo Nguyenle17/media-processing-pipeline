@@ -17,8 +17,8 @@ import { REFRESH_TOKEN_EXPIRES_IN, setRefreshCookie } from './configs/config';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { AuthUser } from './interfaces/auth-user.interface';
 import type { GoogleProfile } from './interfaces/google-profile.interface';
+import { EmailService } from 'src/email/email.service';
 
-/** Trước đây buildPayload dùng 'tiny' còn toPublicUser dùng 'base' -> không nhất quán. */
 const DEFAULT_MODEL = 'base';
 
 @Injectable()
@@ -27,15 +27,27 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
-  // Sửa typo: JWT_FRESHTOKEN_SECRET -> JWT_REFRESH_SECRET (nhớ đổi trong .env)
   private get refreshSecret(): string {
     return this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
   }
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async resendVerificationEmail(user: UserDocument): Promise<void> {
+    if (!user.email) return;
+
+    const token = randomBytes(32).toString('hex');
+    await this.usersService.updateVerificationToken(
+      user._id,
+      this.hashToken(token),
+      new Date(Date.now() + 15 * 60 * 1000),
+    );
+    await this.emailService.sendVerificationEmail(user.email, token);
   }
 
   private isTokenMatching(token: string, hashedToken: string): boolean {
@@ -81,7 +93,6 @@ export class AuthService {
   async issueRefreshToken(user: UserDocument): Promise<string> {
     const token = this.jwtService.sign(this.buildPayload(user), {
       secret: this.refreshSecret,
-      // jwt.sign nhận GIÂY, config lưu MILLISECONDS
       expiresIn: Math.floor(REFRESH_TOKEN_EXPIRES_IN / 1000),
     });
     await this.usersService.updateRefreshToken(user._id, this.hashToken(token));
@@ -93,7 +104,6 @@ export class AuthService {
     res: Response,
   ): Promise<{ accessToken: string }> {
     const user = await this.usersService.findByEmail(loginUserDto.email);
-    // user.password có thể rỗng (tài khoản đăng ký bằng Google) -> bcrypt.compare sẽ throw
     if (!user || !user.password) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -106,7 +116,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Trước đây login không kiểm tra ban, chỉ refresh mới kiểm tra
+    if (user.isVerified == false) {
+      await this.resendVerificationEmail(user);
+      throw new UnauthorizedException('Account is not verified by email');
+    }
+
     if (!user.isActivate) {
       throw new UnauthorizedException('Account is banned');
     }
@@ -117,13 +131,10 @@ export class AuthService {
     return { accessToken: this.signAccessToken(user) };
   }
 
-  /** Đăng nhập bằng Google: tìm user theo email, chưa có thì tạo mới, rồi set refresh cookie. */
   async loginWithGoogle(profile: GoogleProfile, res: Response): Promise<void> {
     let user = await this.usersService.findByEmail(profile.email);
 
     if (!user) {
-      // Tài khoản Google không có mật khẩu; dùng mật khẩu ngẫu nhiên để
-      // tái sử dụng usersService.create (nơi hash mật khẩu).
       user = await this.usersService.create({
         name: profile.name,
         email: profile.email,
@@ -142,11 +153,38 @@ export class AuthService {
   async register(userData: CreateUserDto): Promise<AuthUser> {
     const existingUser = await this.usersService.findByEmail(userData.email);
     if (existingUser) {
+      if (existingUser.isVerified == false) {
+        await this.resendVerificationEmail(existingUser);
+        return this.toPublicUser(existingUser);
+      }
       throw new ConflictException('User already exists');
     }
 
     const user = await this.usersService.create(userData);
+    await this.resendVerificationEmail(user);
+
     return this.toPublicUser(user);
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const tokenHash = this.hashToken(token);
+
+    const user = await this.usersService.findByVerificationToken(tokenHash);
+
+    if (!user || user.isVerified) {
+      throw new UnauthorizedException('Invalid verification token');
+    }
+
+    if (
+      !user.verificationTokenExpiresAt ||
+      user.verificationTokenExpiresAt <= new Date()
+    ) {
+      throw new UnauthorizedException('Verification token expired');
+    }
+
+    await this.usersService.markEmailVerified(user._id);
+
+    return { message: 'Email verified successfully' };
   }
 
   async refreshToken(

@@ -17,6 +17,18 @@ export class User {
   @Prop({ required: true, default: 'user' })
   role?: string;
 
+  @Prop({ required: false, default: false })
+  isVerified?: boolean;
+
+  @Prop({ type: String, default: null })
+  verificationTokenHash?: string | null;
+
+  @Prop({ type: Date, default: null })
+  verificationTokenExpiresAt?: Date | null;
+
+  @Prop({ required: false, default: Date.now() })
+  createdAt?: Date;
+
   @Prop({
     default: 'base',
     enum: ['tiny', 'base', 'small', 'medium', 'large'],

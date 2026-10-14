@@ -34,6 +34,11 @@ export class AuthController {
     return this.authService.login(loginUserDto, res);
   }
 
+  @Post('verify-email')
+  verifyEmail(@Body('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
+
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   refreshToken(

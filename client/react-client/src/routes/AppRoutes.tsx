@@ -12,6 +12,7 @@ import Settings from '../pages/Settings'
 import Dashboard from '../pages/DashBoard'
 import UserManagement from '../pages/UserManagement'
 import AdminRoleUpdate from '../pages/AdminRoleUpdate'
+import VerifyEmail from '../pages/VerifyEmail'
 import ProtectedRoute from '../components/auth/ProtectedRoute'
 
 export default function AppRoutes() {
@@ -21,6 +22,7 @@ export default function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/translate" element={<Translate />} />
         <Route path="/extract-audio" element={<ExtractAudio />} />
         <Route path="/tts-history" element={<ProtectedRoute><TtsHistory /></ProtectedRoute>} />
