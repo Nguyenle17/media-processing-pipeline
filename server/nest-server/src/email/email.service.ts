@@ -30,4 +30,71 @@ export class EmailService {
       `,
     });
   }
+
+  async sendCodeToResetPassword(to: string, code: string) {
+    await this.transporter.sendMail({
+      from: `"Media AI" <${process.env.SMTP_USER}>`,
+      to,
+      subject: 'Mã xác thực đặt lại mật khẩu',
+      html: `
+      <div style="
+        max-width: 500px;
+        margin: 0 auto;
+        padding: 24px;
+        font-family: Arial, sans-serif;
+        color: #333;
+        background-color: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+      ">
+        <h2 style="text-align: center; color: #2563eb;">
+          Đặt lại mật khẩu
+        </h2>
+
+        <p>Xin chào,</p>
+
+        <p>
+          Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản
+          Media AI của bạn. Vui lòng sử dụng mã xác thực bên dưới:
+        </p>
+
+        <div style="
+          margin: 24px 0;
+          padding: 16px;
+          text-align: center;
+          background-color: #f3f4f6;
+          border-radius: 8px;
+        ">
+          <span style="
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            color: #2563eb;
+          ">
+            ${code}
+          </span>
+        </div>
+
+        <p>
+          Mã xác thực có hiệu lực trong <strong>15 phút</strong>.
+          Vui lòng không chia sẻ mã này với bất kỳ ai.
+        </p>
+
+        <p>
+          Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e5e7eb;" />
+
+        <p style="
+          text-align: center;
+          font-size: 12px;
+          color: #6b7280;
+        ">
+          © Media AI. All rights reserved.
+        </p>
+      </div>
+    `,
+    });
+  }
 }

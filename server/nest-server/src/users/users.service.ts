@@ -83,6 +83,25 @@ export class UsersService {
     });
   }
 
+  findByCode(code: string) {
+    return this.userModel.findOne({
+      codeResetPassword: code,
+    });
+  }
+
+  markResetPassword(id: UserId) {
+    return this.userModel.findOneAndUpdate(
+      { _id: id },
+      {
+        $set: {
+          codeResetPassword: null,
+          codeResetPasswordExpiredAt: null,
+        },
+      },
+      { new: true },
+    );
+  }
+
   markEmailVerified(id: UserId) {
     return this.userModel.findOneAndUpdate(
       { _id: id },
@@ -118,6 +137,39 @@ export class UsersService {
       verificationTokenHash: tokenHash,
       verificationTokenExpiresAt: expired,
     });
+  }
+
+  updateCodeResetPassword(id: UserId, code: string, expired: Date) {
+    return this.userModel.findByIdAndUpdate(id, {
+      codeResetPassword: code,
+      codeResetPasswordExpiredAt: expired,
+    });
+  }
+
+  async updatePasswordAndClearResetCode(
+    id: UserId,
+    password: string,
+    codeHash: string,
+  ): Promise<boolean> {
+    const hashedPassword = await hash(password, SALT_ROUNDS);
+    const updated = await this.userModel
+      .findOneAndUpdate(
+        {
+          _id: id,
+          codeResetPassword: codeHash,
+          codeResetPasswordExpiredAt: { $gt: new Date() },
+        },
+        {
+          $set: { password: hashedPassword },
+          $unset: {
+            codeResetPassword: 1,
+            codeResetPasswordExpiredAt: 1,
+          },
+        },
+        { new: true },
+      )
+      .exec();
+    return Boolean(updated);
   }
 
   updateRefreshToken(id: UserId, token: string | null): Promise<UserDocument> {

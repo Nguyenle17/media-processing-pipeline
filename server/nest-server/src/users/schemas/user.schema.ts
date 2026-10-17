@@ -29,6 +29,12 @@ export class User {
   @Prop({ required: false, default: Date.now() })
   createdAt?: Date;
 
+  @Prop({ required: false, default: null })
+  codeResetPassword?: string;
+
+  @Prop({ type: Date, required: false, default: null })
+  codeResetPasswordExpiredAt?: Date | null;
+
   @Prop({
     default: 'base',
     enum: ['tiny', 'base', 'small', 'medium', 'large'],

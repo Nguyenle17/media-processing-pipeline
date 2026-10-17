@@ -8,11 +8,12 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import type { Response } from 'express';
-import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'crypto';
 import { UsersService } from '../users/users.service';
 import type { UserDocument } from '../users/schemas/user.schema';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { REFRESH_TOKEN_EXPIRES_IN, setRefreshCookie } from './configs/config';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { AuthUser } from './interfaces/auth-user.interface';
@@ -36,6 +37,10 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private generateResetCode(): string {
+    return String(randomInt(100000, 1000000));
   }
 
   private async resendVerificationEmail(user: UserDocument): Promise<void> {
@@ -222,5 +227,49 @@ export class AuthService {
     } catch (error: unknown) {
       if (!(error instanceof NotFoundException)) throw error;
     }
+  }
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const user = await this.usersService.findByEmail(email);
+
+    // Always return the same response to avoid revealing whether an email exists.
+    if (user?.email) {
+      const code = this.generateResetCode();
+      await this.usersService.updateCodeResetPassword(
+        user._id,
+        this.hashToken(code),
+        new Date(Date.now() + 15 * 60 * 1000),
+      );
+      await this.emailService.sendCodeToResetPassword(user.email, code);
+    }
+
+    return { message: 'If the email exists, a reset code has been sent.' };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+    const user = await this.usersService.findByEmail(resetPasswordDto.email);
+    const codeHash = this.hashToken(resetPasswordDto.code);
+
+    if (
+      !user ||
+      !user.codeResetPassword ||
+      !this.isTokenMatching(resetPasswordDto.code, user.codeResetPassword) ||
+      !user.codeResetPasswordExpiredAt ||
+      user.codeResetPasswordExpiredAt <= new Date()
+    ) {
+      throw new UnauthorizedException('Invalid or expired reset code');
+    }
+
+    const updated = await this.usersService.updatePasswordAndClearResetCode(
+      user._id,
+      resetPasswordDto.newPassword,
+      codeHash,
+    );
+
+    if (!updated) {
+      throw new UnauthorizedException('Invalid or expired reset code');
+    }
+
+    return { message: 'Password reset successfully' };
   }
 }
