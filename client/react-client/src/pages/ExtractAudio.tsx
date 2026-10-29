@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import LanguagePicker from '../components/common/LanguagePicker';
-import { LANGUAGES, getLanguageByCode } from '../constants/languages';
+import { LANGUAGES } from '../constants/languages';
 import Api from '../api/Api';
-import { Volume2, Trash2, Download, AlertTriangle, PenTool, Type, FileAudio } from 'lucide-react';
+import { Volume2, Trash2, Download, AlertTriangle, PenTool, Wand2, FileAudio } from 'lucide-react';
 
 export default function ExtractAudio() {
   const [text, setText] = useState<string>('');
