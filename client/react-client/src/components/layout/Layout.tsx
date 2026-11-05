@@ -8,9 +8,10 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#0a0a0f' }}>
+    <div className="vs-app">
+      <a className="vs-skip-link" href="#main-content">Skip to content</a>
       <Header />
-      <main style={{ flex: 1 }}>{children}</main>
+      <main id="main-content" className="vs-main">{children}</main>
       <Footer />
     </div>
   );

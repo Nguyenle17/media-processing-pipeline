@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { AlertCircle } from 'lucide-react';
 import Api from "../api/Api";
 
 export default function Register() {
@@ -10,6 +11,8 @@ export default function Register() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
+
+    const passwordsDiffer = Boolean(confirmPassword) && password !== confirmPassword;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -33,105 +36,93 @@ export default function Register() {
     };
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0a0a0f', padding: '0 16px' }}>
-            <div style={{ width: '100%', maxWidth: '400px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '20px', padding: '32px' }}>
-
-                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                    <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>Create Account</h2>
-                    <p style={{ fontSize: '14px', color: '#a1a1aa' }}>Sign up to get started</p>
+        <div className="vs-auth-page">
+            <div className="vs-auth-card">
+                <div className="vs-auth-head">
+                    <h1 className="vs-auth-title">Create account</h1>
+                    <p className="vs-auth-desc">Start transcribing and translating your media.</p>
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-                    <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#71717a', fontFamily: "'JetBrains Mono', monospace", marginBottom: '6px' }}>Full Name</label>
+                <form onSubmit={handleSubmit} className="vs-stack" style={{ gap: 14 }}>
+                    <div className="vs-field">
+                        <label className="vs-label" htmlFor="register-name">Full name</label>
                         <input
+                            id="register-name"
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            style={{
-                                width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                                borderRadius: '12px', padding: '10px 14px', fontSize: '14px', color: '#fff', outline: 'none'
-                            }}
+                            className="vs-input"
                             placeholder="Your full name"
+                            autoComplete="name"
                             required
                         />
                     </div>
 
-                    <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#71717a', fontFamily: "'JetBrains Mono', monospace", marginBottom: '6px' }}>Email</label>
+                    <div className="vs-field">
+                        <label className="vs-label" htmlFor="register-email">Email</label>
                         <input
+                            id="register-email"
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            style={{
-                                width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                                borderRadius: '12px', padding: '10px 14px', fontSize: '14px', color: '#fff', outline: 'none'
-                            }}
+                            className="vs-input"
                             placeholder="you@example.com"
+                            autoComplete="email"
                             required
                         />
                     </div>
 
-                    <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#71717a', fontFamily: "'JetBrains Mono', monospace", marginBottom: '6px' }}>Password</label>
+                    <div className="vs-field">
+                        <label className="vs-label" htmlFor="register-password">Password</label>
                         <input
+                            id="register-password"
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            style={{
-                                width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                                borderRadius: '12px', padding: '10px 14px', fontSize: '14px', color: '#fff', outline: 'none'
-                            }}
+                            className="vs-input"
                             placeholder="••••••••"
+                            autoComplete="new-password"
+                            minLength={8}
                             required
                         />
                     </div>
 
-                    <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#71717a', fontFamily: "'JetBrains Mono', monospace", marginBottom: '6px' }}>Confirm Password</label>
+                    <div className="vs-field">
+                        <label className="vs-label" htmlFor="register-confirm">Confirm password</label>
                         <input
+                            id="register-confirm"
                             type="password"
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
-                            style={{
-                                width: '100%', background: 'rgba(255,255,255,0.05)', 
-                                border: (confirmPassword && password !== confirmPassword) ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.1)',
-                                borderRadius: '12px', padding: '10px 14px', fontSize: '14px', color: '#fff', outline: 'none'
-                            }}
+                            className="vs-input"
+                            style={passwordsDiffer ? { borderColor: 'var(--vs-danger)' } : undefined}
                             placeholder="••••••••"
+                            autoComplete="new-password"
+                            aria-invalid={passwordsDiffer}
+                            aria-describedby={passwordsDiffer ? 'register-confirm-error' : undefined}
                             required
                         />
-                        {confirmPassword && password !== confirmPassword && (
-                            <p style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px' }}>Passwords do not match</p>
+                        {passwordsDiffer && (
+                            <p id="register-confirm-error" className="vs-text-danger" style={{ fontSize: 12 }}>
+                                Passwords do not match
+                            </p>
                         )}
                     </div>
 
                     {error && (
-                        <div style={{ color: '#ef4444', fontSize: '12px', textAlign: 'center', background: 'rgba(239,68,68,0.1)', padding: '8px', borderRadius: '8px' }}>
-                            {error}
+                        <div className="vs-form-error" role="alert">
+                            <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                            <span>{error}</span>
                         </div>
                     )}
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            width: '100%', background: '#6366f1', color: '#fff',
-                            border: 'none', borderRadius: '6px', padding: '12px', fontSize: '14px', fontWeight: 500,
-                            cursor: loading ? 'not-allowed' : 'pointer', marginTop: '8px',
-                            opacity: loading ? 0.7 : 1
-                        }}
-                    >
-                        {loading ? 'Signing up...' : 'Sign up'}
+                    <button type="submit" className="vs-submit-btn" disabled={loading}>
+                        {loading ? 'Creating account…' : 'Create account'}
                     </button>
                 </form>
 
-                <p style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px', color: '#a1a1aa' }}>
-                    Already have an account?{" "}
-                    <Link to="/login" style={{ color: '#a5b4fc', textDecoration: 'none', fontWeight: 500 }}>
-                        Sign in
-                    </Link>
+                <p className="vs-auth-footer">
+                    Already have an account? <Link to="/login">Sign in</Link>
                 </p>
             </div>
         </div>

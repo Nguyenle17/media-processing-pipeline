@@ -1,33 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { MODELS } from '../constants/models';
-import { Save, Server, Zap, Target, CheckCircle2, AlertCircle, UserRound, Gauge, CircleHelp } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  CircleHelp,
+  Gauge,
+  Save,
+  Server,
+  Target,
+  UserRound,
+  Zap,
+} from 'lucide-react';
 import Api from '../api/Api';
-
-interface DotProps {
-  active: boolean;
-}
-
-const Dot: React.FC<DotProps> = ({ active }) => (
-  <div className={`w-2 h-2 rounded-full ${active ? 'bg-indigo-500' : 'bg-gray-700'}`} />
-);
 
 interface BarProps {
   value: number; // 1 to 5
 }
 
-const Bar: React.FC<BarProps> = ({ value }) => {
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((level) => (
-        <div 
-          key={level} 
-          className={`h-1.5 w-6 rounded-sm ${level <= value ? 'bg-indigo-500' : 'bg-gray-700'}`} 
-        />
-      ))}
-    </div>
-  );
-};
+const Bar: React.FC<BarProps> = ({ value }) => (
+  <span className="vs-bars" aria-hidden="true">
+    {[1, 2, 3, 4, 5].map((level) => (
+      <i key={level} className={level <= value ? 'on' : ''} />
+    ))}
+  </span>
+);
 
 export default function Settings() {
   const { token, user } = useAuth();
@@ -72,84 +69,100 @@ export default function Settings() {
     }
   };
 
+  const activeModel = MODELS.find((model) => model.id === selectedModel);
+
   return (
-    <div className="settings-container fade-in p-6 max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="vs-section-title text-3xl font-bold mb-2 flex items-center gap-2">
-          <Server className="text-indigo-500" /> AI Settings
-        </h1>
-        <p className="text-gray-400">Configure your default AI models and processing preferences.</p>
-      </div>
-
-      <div className="vs-info-strip">
-        <div className="vs-info-item"><div className="vs-info-icon"><UserRound size={15} /></div><div><strong>{user?.name || 'Your workspace'}</strong><span>{user?.email || 'Personal media workspace'}</span></div></div>
-        <div className="vs-info-item"><div className="vs-info-icon"><Gauge size={15} /></div><div><strong>Model hiện tại</strong><span>{MODELS.find((model) => model.id === selectedModel)?.label || 'Base'}</span></div></div>
-        <div className="vs-info-item"><div className="vs-info-icon"><CircleHelp size={15} /></div><div><strong>Cần trợ giúp?</strong><span>Model lớn chính xác hơn, model nhỏ xử lý nhanh hơn</span></div></div>
-      </div>
-
-      <div className="vs-panel">
-        <div className="vs-panel-header">
-          <div className="flex items-center gap-2">
-            <span className="vs-panel-dot bg-indigo-500"></span>
-            <h2 className="vs-panel-title">Whisper Model Selection</h2>
+    <div className="vs-page fade-in">
+      <div className="vs-container" style={{ maxWidth: 960 }}>
+        <div className="vs-page-head">
+          <div className="vs-page-head__text">
+            <span className="vs-page-kicker">Workspace</span>
+            <h1 className="vs-page-title"><Server size={26} /> AI settings</h1>
+            <p className="vs-page-desc">Choose the default Whisper model used for new transcription jobs.</p>
           </div>
         </div>
-        <div className="vs-panel-body space-y-4 bg-[#0a0a0f]">
-          <p className="text-sm text-gray-400 mb-4">
-            Select the default transcription model. Larger models are more accurate but take longer to process.
-          </p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {MODELS.map(model => (
-              <div 
-                key={model.id}
-                className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                  selectedModel === model.id 
-                    ? 'border-indigo-500 bg-indigo-500/10' 
-                    : 'border-gray-800 bg-[#13131f] hover:border-gray-600'
-                }`}
-                onClick={() => setSelectedModel(model.id)}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      selectedModel === model.id ? 'border-indigo-500' : 'border-gray-500'
-                    }`}>
-                      {selectedModel === model.id && <div className="w-2 h-2 rounded-full bg-indigo-500" />}
-                    </div>
-                <span className="font-medium text-gray-200">{model.label}</span>
-                  </div>
-                  <span className="vs-badge bg-gray-800 text-xs text-gray-400 px-2 py-1 rounded">
-                    {model.size}
-                  </span>
-                </div>
-                
-                <p className="text-xs text-gray-500 mb-4 ml-6">{model.desc}</p>
-                
-                <div className="ml-6 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400 flex items-center gap-1"><Zap size={12}/> Speed</span>
-                    <Bar value={model.speed} />
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-400 flex items-center gap-1"><Target size={12}/> Accuracy</span>
-                    <Bar value={model.accuracy} />
-                  </div>
-                </div>
-              </div>
-            ))}
+
+        <div className="vs-info-strip">
+          <div className="vs-info-item">
+            <div className="vs-info-icon"><UserRound size={14} /></div>
+            <div><strong>{user?.name || 'Your workspace'}</strong><span>{user?.email || 'Personal media workspace'}</span></div>
+          </div>
+          <div className="vs-info-item">
+            <div className="vs-info-icon"><Gauge size={14} /></div>
+            <div><strong>Current model</strong><span>{activeModel?.label || 'Base'}</span></div>
+          </div>
+          <div className="vs-info-item">
+            <div className="vs-info-icon"><CircleHelp size={14} /></div>
+            <div><strong>Which model?</strong><span>Larger models are more accurate but slower</span></div>
           </div>
         </div>
-        <div className="p-4 border-t border-gray-800 bg-[#13131f] flex justify-end items-center gap-4">
-          {success && <span className="text-green-400 text-sm flex items-center gap-2"><CheckCircle2 size={16} /> Settings saved</span>}
-          {error && <span className="text-red-400 text-sm flex items-center gap-2"><AlertCircle size={16} /> {error}</span>}
-          <button 
-            className="vs-submit-btn flex items-center gap-2"
-            onClick={handleSave}
-            disabled={loading}
-          >
-            {loading ? 'Saving...' : <><Save size={18} /> Save Settings</>}
-          </button>
+
+        <div className="vs-panel">
+          <div className="vs-panel-header">
+            <div className="vs-panel-header__group">
+              <span className="vs-panel-dot" />
+              <h2 className="vs-panel-title">Whisper model</h2>
+            </div>
+            <span className="vs-panel-kicker">{MODELS.length} options</span>
+          </div>
+          <div className="vs-panel-body">
+            <p className="vs-hint" style={{ marginBottom: 14 }}>
+              This becomes the default for transcription and translation. You can still change it per job.
+            </p>
+
+            <div className="vs-model-grid" role="radiogroup" aria-label="Default Whisper model">
+              {MODELS.map((model) => {
+                const selected = selectedModel === model.id;
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={`vs-model-card ${selected ? 'is-selected' : ''}`}
+                    onClick={() => setSelectedModel(model.id)}
+                  >
+                    <span className="vs-model-card__head">
+                      <span className="vs-model-card__name">
+                        <span className="vs-radio" aria-hidden="true" />
+                        {model.label}
+                      </span>
+                      <span className="vs-badge">{model.size}</span>
+                    </span>
+                    <span className="vs-model-card__desc" style={{ display: 'block' }}>{model.desc}</span>
+                    <span className="vs-model-card__meter">
+                      <span><Zap size={12} /> Speed</span>
+                      <Bar value={model.speed} />
+                    </span>
+                    <span className="vs-model-card__meter">
+                      <span><Target size={12} /> Accuracy</span>
+                      <Bar value={model.accuracy} />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="vs-panel-footer">
+            {success && (
+              <span className="vs-text-success" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }} role="status">
+                <CheckCircle2 size={16} /> Settings saved
+              </span>
+            )}
+            {error && (
+              <span className="vs-text-danger" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }} role="alert">
+                <AlertCircle size={16} /> {error}
+              </span>
+            )}
+            <button
+              className="vs-btn vs-btn--primary vs-btn--lg"
+              onClick={handleSave}
+              disabled={loading}
+            >
+              {loading ? 'Saving…' : <><Save size={16} /> Save settings</>}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -8,15 +8,22 @@ interface LanguagePickerProps {
 
 export default function LanguagePicker({ languages, selected, onSelect }: LanguagePickerProps) {
   return (
-    <div className="vs-lang-grid">
-      {languages.map((lang) => (
-        <button key={lang.code} type="button"
-          className={`vs-lang-btn ${selected === lang.code ? 'active' : ''}`}
-          onClick={() => onSelect(lang.code)}>
-          <span className="vs-lang-flag">{lang.flag}</span>
-          <span className="vs-lang-label">{lang.label}</span>
-        </button>
-      ))}
+    <div className="vs-lang-grid" role="group" aria-label="Language">
+      {languages.map((lang) => {
+        const isSelected = selected === lang.code;
+        return (
+          <button
+            key={lang.code}
+            type="button"
+            className={`vs-lang-btn ${isSelected ? 'active' : ''}`}
+            onClick={() => onSelect(lang.code)}
+            aria-pressed={isSelected}
+          >
+            <span className="vs-lang-code">{lang.code.toUpperCase()}</span>
+            <span className="vs-lang-label">{lang.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

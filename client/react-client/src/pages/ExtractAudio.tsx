@@ -1,8 +1,16 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import LanguagePicker from '../components/common/LanguagePicker';
 import { LANGUAGES } from '../constants/languages';
 import Api from '../api/Api';
-import { Volume2, Trash2, Download, AlertTriangle, PenTool, Wand2, FileAudio } from 'lucide-react';
+import {
+  AlertTriangle,
+  Download,
+  FileAudio,
+  PenTool,
+  Trash2,
+  Volume2,
+  Wand2,
+} from 'lucide-react';
 
 export default function ExtractAudio() {
   const [text, setText] = useState<string>('');
@@ -13,9 +21,10 @@ export default function ExtractAudio() {
 
   const charCount = text.length;
   const maxChars = 2000;
+  const isOverLimit = charCount > maxChars;
 
   const handleGenerate = async () => {
-    if (!text.trim() || charCount > maxChars) return;
+    if (!text.trim() || isOverLimit) return;
     setIsProcessing(true);
     setError(null);
     setAudioURL(null);
@@ -45,110 +54,121 @@ export default function ExtractAudio() {
   };
 
   return (
-    <div className="tts-container fade-in p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="vs-section-title text-3xl font-bold mb-2 flex items-center gap-2">
-          <Volume2 className="text-indigo-500" /> Text to Speech
-        </h1>
-        <p className="text-gray-400">Convert your text to natural sounding speech.</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="vs-panel">
-            <div className="vs-panel-header flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <span className="vs-panel-dot bg-indigo-500"></span>
-                <h2 className="vs-panel-title">Input Text</h2>
-              </div>
-              <button className="vs-btn vs-btn--ghost text-xs" onClick={handleClear}>
-                <Trash2 size={14} className="mr-1" /> Clear
-              </button>
-            </div>
-            <div className="vs-panel-body">
-              <textarea
-                className="w-full h-48 bg-[#13131f] border border-gray-800 rounded-md p-4 text-white focus:outline-none focus:border-indigo-500 resize-none vs-scroll"
-                placeholder="Enter text here..."
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-              />
-              <div className={`text-right text-sm mt-2 ${charCount > maxChars ? 'text-red-500' : 'text-gray-500'}`}>
-                {charCount} / {maxChars} characters
-              </div>
-            </div>
+    <div className="vs-page fade-in">
+      <div className="vs-container">
+        <div className="vs-page-head">
+          <div className="vs-page-head__text">
+            <span className="vs-page-kicker">Text to speech</span>
+            <h1 className="vs-page-title"><Volume2 size={26} /> Generate a voiceover</h1>
+            <p className="vs-page-desc">Convert up to 2,000 characters into natural-sounding speech in the language you choose.</p>
           </div>
-
-          <div className="vs-panel">
-            <div className="vs-panel-header">
-              <div className="flex items-center gap-2">
-                <span className="vs-panel-dot bg-purple-500"></span>
-                <h2 className="vs-panel-title">Language Voice</h2>
-              </div>
-            </div>
-            <div className="vs-panel-body">
-              <LanguagePicker 
-                languages={LANGUAGES} 
-                selected={targetLang} 
-                onSelect={setTargetLang} 
-              />
-            </div>
-          </div>
-          
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/50 rounded-md p-4 text-red-500 flex items-start gap-3">
-              <AlertTriangle size={20} className="shrink-0 mt-0.5" />
-              <div>{error}</div>
-            </div>
-          )}
-
-          <button 
-            className="vs-submit-btn w-full flex justify-center items-center gap-2"
-            onClick={handleGenerate}
-            disabled={isProcessing || !text.trim() || charCount > maxChars}
-          >
-            {isProcessing ? 'Generating...' : <><Wand2 size={18} /> Generate Audio</>}
-          </button>
         </div>
 
-        <div className="space-y-6">
-          <div className="vs-panel">
-            <div className="vs-panel-header">
-              <div className="flex items-center gap-2">
-                <span className="vs-panel-dot bg-green-500"></span>
-                <h2 className="vs-panel-title">Result</h2>
+        <div className="vs-tts-grid">
+          <div className="vs-stack">
+            <div className="vs-panel">
+              <div className="vs-panel-header">
+                <div className="vs-panel-header__group">
+                  <span className="vs-panel-dot" />
+                  <h2 className="vs-panel-title">Script</h2>
+                </div>
+                <button className="vs-btn vs-btn--ghost vs-btn--sm" onClick={handleClear} disabled={!text && !audioURL}>
+                  <Trash2 size={13} /> Clear
+                </button>
+              </div>
+              <div className="vs-panel-body">
+                <label className="vs-label" htmlFor="tts-script">Text to speak</label>
+                <textarea
+                  id="tts-script"
+                  className="vs-textarea"
+                  style={{ marginTop: 6 }}
+                  placeholder="Paste or type the script you want to turn into audio…"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  aria-invalid={isOverLimit}
+                  aria-describedby="tts-char-count"
+                />
+                <div id="tts-char-count" className={`vs-char-count ${isOverLimit ? 'is-over' : ''}`}>
+                  {charCount.toLocaleString()} / {maxChars.toLocaleString()} characters
+                </div>
               </div>
             </div>
-            <div className="vs-panel-body flex flex-col items-center justify-center min-h-[200px]">
-              {audioURL ? (
-                <div className="w-full space-y-4">
-                  <audio controls src={audioURL} className="w-full" />
-                  <a 
-                    href={audioURL} 
-                    download="generated-audio.mp3"
-                    className="vs-btn vs-btn--success w-full flex justify-center items-center gap-2 py-3"
-                  >
-                    <Download size={18} /> Download MP3
-                  </a>
+
+            <div className="vs-panel">
+              <div className="vs-panel-header">
+                <div className="vs-panel-header__group">
+                  <span className="vs-panel-dot" />
+                  <h2 className="vs-panel-title">Voice language</h2>
                 </div>
-              ) : (
-                <div className="text-gray-500 flex flex-col items-center">
-                  <FileAudio size={32} className="mb-2 opacity-50" />
-                  <p>Audio will appear here</p>
-                </div>
-              )}
+              </div>
+              <div className="vs-panel-body">
+                <LanguagePicker
+                  languages={LANGUAGES}
+                  selected={targetLang}
+                  onSelect={setTargetLang}
+                />
+              </div>
             </div>
+
+            {error && (
+              <div className="vs-form-error" role="alert">
+                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <button
+              className="vs-submit-btn"
+              onClick={handleGenerate}
+              disabled={isProcessing || !text.trim() || isOverLimit}
+            >
+              {isProcessing ? 'Generating audio…' : <><Wand2 size={17} /> Generate audio</>}
+            </button>
           </div>
 
-          <div className="vs-panel bg-indigo-900/10 border-indigo-500/20">
-            <div className="vs-panel-body">
-              <h3 className="font-semibold text-indigo-400 mb-3 flex items-center gap-2">
-                <PenTool size={16} /> Tips for best results
-              </h3>
-              <ul className="text-sm text-gray-400 space-y-2 list-disc pl-4">
-                <li>Use proper punctuation for natural pauses.</li>
-                <li>Avoid very long sentences.</li>
-                <li>Ensure the selected language matches the text.</li>
-              </ul>
+          <div className="vs-stack">
+            <div className="vs-panel">
+              <div className="vs-panel-header">
+                <div className="vs-panel-header__group">
+                  <span className={`vs-panel-dot ${audioURL ? 'vs-panel-dot--success' : 'vs-panel-dot--muted'}`} />
+                  <h2 className="vs-panel-title">Result</h2>
+                </div>
+              </div>
+              <div className="vs-panel-body" style={{ minHeight: 180 }} aria-live="polite">
+                {audioURL ? (
+                  <div className="vs-stack">
+                    <audio controls src={audioURL} />
+                    <a
+                      href={audioURL}
+                      download="generated-audio.mp3"
+                      className="vs-btn vs-btn--success vs-btn--block"
+                    >
+                      <Download size={16} /> Download MP3
+                    </a>
+                  </div>
+                ) : (
+                  <div className="vs-empty" style={{ minHeight: 140 }}>
+                    <FileAudio size={28} />
+                    <p>Your audio will appear here.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="vs-panel">
+              <div className="vs-panel-header">
+                <div className="vs-panel-header__group">
+                  <PenTool size={14} style={{ color: 'var(--vs-accent-light)' }} />
+                  <h2 className="vs-panel-title">Writing tips</h2>
+                </div>
+              </div>
+              <div className="vs-panel-body">
+                <ul className="vs-tips">
+                  <li>Use punctuation to create natural pauses.</li>
+                  <li>Keep sentences short and direct.</li>
+                  <li>Match the voice language to the script.</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -156,5 +176,3 @@ export default function ExtractAudio() {
     </div>
   );
 }
-
-

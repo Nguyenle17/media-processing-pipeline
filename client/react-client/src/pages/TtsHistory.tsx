@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertCircle,
   Check,
@@ -50,7 +50,7 @@ export default function TtsHistory() {
       setTotalPages(response.totalPages || 1);
       setSelected((current) => list.find((item) => item.id === current?.id) ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể tải lịch sử TTS.');
+      setError(err instanceof Error ? err.message : 'Could not load voice history.');
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ export default function TtsHistory() {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      setError('Không thể sao chép nội dung.');
+      setError('Could not copy this text.');
     }
   };
 
@@ -85,7 +85,7 @@ export default function TtsHistory() {
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch {
-      setError('Không thể tải audio.');
+      setError('Could not download this audio.');
     } finally {
       setDownloading(false);
     }
@@ -99,195 +99,163 @@ export default function TtsHistory() {
       if (items.length === 1 && page > 1) setPage(page - 1);
       else await fetchHistory();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể xoá bản ghi.');
+      setError(err instanceof Error ? err.message : 'Could not delete this record.');
     } finally {
       setItemToDelete(null);
     }
   };
 
   return (
-    <div className="history-container fade-in p-6 max-w-7xl mx-auto h-[calc(100vh-80px)] flex flex-col">
-      <div className="flex flex-wrap justify-between items-end gap-4 mb-6">
-        <div>
-          <h1 className="vs-section-title text-3xl font-bold mb-2 flex items-center gap-3">
-            <Volume2 size={28} className="text-indigo-400" /> TTS history
-          </h1>
-          <p className="text-gray-400">Xem lại text gốc và nghe lại audio đã tạo.</p>
+    <div className="vs-history-page fade-in">
+      <div className="vs-container vs-history-inner">
+        <div className="vs-page-head">
+          <div className="vs-page-head__text">
+            <span className="vs-page-kicker">Library</span>
+            <h1 className="vs-page-title"><Volume2 size={26} /> Voice history</h1>
+            <p className="vs-page-desc">Replay generated audio and review the original script.</p>
+          </div>
+          <SearchInput
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            placeholder="Search text or language…"
+          />
         </div>
-        <SearchInput
-          value={search}
-          onChange={(value) => {
-            setSearch(value);
-            setPage(1);
-          }}
-          placeholder="Tìm theo nội dung, ngôn ngữ..."
-        />
-      </div>
 
-      <div className="history-layout flex gap-6 flex-1 min-h-0">
-        {/* ---------- List ---------- */}
-        <section className="history-list vs-panel flex flex-col">
-          <div className="vs-panel-header">
-            <div className="flex items-center justify-between w-full">
-              <h2 className="vs-panel-title flex items-center gap-2">
-                <ListVideo size={16} /> Recent audio
-              </h2>
-              <button
-                className="vs-btn vs-btn--ghost !p-2"
-                onClick={fetchHistory}
-                title="Refresh"
-              >
-                <RefreshCw size={14} />
+        <div className="vs-split">
+          <section className="vs-panel" aria-label="Voice records">
+            <div className="vs-panel-header">
+              <div className="vs-panel-header__group">
+                <ListVideo size={15} style={{ color: 'var(--vs-accent-light)' }} />
+                <h2 className="vs-panel-title">Recent audio</h2>
+              </div>
+              <button className="vs-btn vs-btn--ghost vs-btn--sm" onClick={fetchHistory} title="Refresh">
+                <RefreshCw size={13} /> <span className="vs-hide-sm">Refresh</span>
               </button>
             </div>
-          </div>
 
-          <div className="vs-panel-body flex-1 overflow-y-auto vs-scroll p-0">
-            {loading ? (
-              <div className="flex justify-center p-8">
-                <LoadingSpinner size={32} color="#6366f1" />
-              </div>
-            ) : error ? (
-              <div className="p-8 text-center text-red-300 text-sm">{error}</div>
-            ) : items.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                {search ? 'Không tìm thấy kết quả.' : 'Chưa có audio nào được tạo.'}
+            <div className="vs-list-body">
+              {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+                  <LoadingSpinner size={28} />
+                </div>
+              ) : error ? (
+                <div className="vs-empty" role="alert">
+                  <AlertCircle size={26} />
+                  <p style={{ color: 'var(--vs-danger-light)' }}>{error}</p>
+                </div>
+              ) : items.length === 0 ? (
+                <div className="vs-empty">
+                  <Volume2 size={26} />
+                  <p>{search ? 'No matching audio.' : 'No audio generated yet.'}</p>
+                </div>
+              ) : (
+                items.map((item) => {
+                  const active = selected?.id === item.id;
+                  return (
+                    <div key={item.id} className={`vs-list-row ${active ? 'is-active' : ''}`}>
+                      <button className="vs-list-item" onClick={() => setSelected(item)} aria-pressed={active}>
+                        <span className="vs-list-item-title">{item.originalText || 'Untitled audio'}</span>
+                        <span className="vs-list-item-meta">
+                          <span><Clock size={12} /> {formatDate(item.createdAt)}</span>
+                          {item.language && <span>{item.language.toUpperCase()}</span>}
+                          {item.duration != null && item.duration > 0 && (
+                            <span>{formatDuration(item.duration)}</span>
+                          )}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="vs-list-item-delete"
+                        onClick={() => setItemToDelete(item.id)}
+                        aria-label="Delete voice record"
+                        title="Delete"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="vs-list-footer">
+              <Pagination page={page} totalPages={totalPages} onPageChange={setPage} delta={1} />
+            </div>
+          </section>
+
+          <section className="vs-panel" aria-label="Voice details">
+            {!selected ? (
+              <div className="vs-empty" style={{ flex: 1 }}>
+                <FileAudio size={34} />
+                <div>
+                  <strong style={{ color: 'var(--vs-text-muted)', fontWeight: 600 }}>Select a recording</strong>
+                  <p style={{ marginTop: 4 }}>Choose a voice record to listen and read along.</p>
+                </div>
               </div>
             ) : (
-              <div className="divide-y divide-gray-800">
-                {items.map((item) => (
-                  <button
-                    key={item.id}
-                    className={`history-item w-full text-left p-4 ${
-                      selected?.id === item.id ? 'history-item--active' : ''
-                    }`}
-                    onClick={() => setSelected(item)}
-                  >
-                    <div className="flex justify-between items-start gap-2 mb-2">
-                      <span className="font-medium text-gray-200 truncate">
-                        {item.originalText || 'Untitled audio'}
-                      </span>
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="text-gray-500 hover:text-red-400 shrink-0"
-                        title="Delete"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setItemToDelete(item.id);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setItemToDelete(item.id);
-                          }
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <Clock size={15} className="text-gray-500" />
-                        {formatDate(item.createdAt)}
-                      </span>
-                      {item.language && <span>{item.language}</span>}
-                      {item.duration != null && item.duration > 0 && (
-                        <span>{formatDuration(item.duration)}</span>
+              <>
+                <div className="vs-panel-header" style={{ alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h2 className="vs-panel-title">Audio details</h2>
+                    <div className="vs-meta-row">
+                      <span>{formatDate(selected.createdAt)}</span>
+                      {selected.language && <span className="vs-badge">{selected.language.toUpperCase()}</span>}
+                      {selected.duration != null && selected.duration > 0 && (
+                        <span className="vs-badge">{formatDuration(selected.duration)}</span>
                       )}
                     </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="p-4 border-t border-gray-800">
-            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} delta={1} />
-          </div>
-        </section>
-
-        {/* ---------- Detail ---------- */}
-        <section className="history-detail vs-panel flex flex-col">
-          {!selected ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500">
-              <FileAudio size={48} className="mb-4 opacity-20" />
-              <p>Chọn một bản ghi để xem nội dung</p>
-            </div>
-          ) : (
-            <>
-              <div className="vs-panel-header flex justify-between items-start gap-4">
-                <div className="min-w-0">
-                  <h2 className="vs-panel-title text-lg truncate">Audio details</h2>
-                  <div className="text-xs text-gray-500 mt-2">
-                    {formatDate(selected.createdAt)}
-                    {selected.language ? ` • ${selected.language}` : ''}
-                    {selected.duration != null && selected.duration > 0
-                      ? ` • ${formatDuration(selected.duration)}`
-                      : ''}
                   </div>
                 </div>
-              </div>
 
-              <div className="vs-panel-body flex-1 overflow-y-auto vs-scroll bg-[#0a0a0f]">
-                <div className="history-content p-4">
-                  <div className="history-content-label">
+                <div className="vs-history-detail-body">
+                  <div className="vs-history-content-label">
                     <span>Original text</span>
-                    <button
-                      className="vs-btn vs-btn--ghost !p-2"
-                      onClick={copyText}
-                      title="Copy"
-                    >
-                      {copied ? <Check size={14} /> : <Clipboard size={14} />}
+                    <button className="vs-btn vs-btn--ghost vs-btn--sm" onClick={copyText} title="Copy">
+                      {copied ? <><Check size={13} /> Copied</> : <><Clipboard size={13} /> Copy</>}
                     </button>
                   </div>
-                  <div className="whitespace-pre-wrap text-gray-200 leading-8">
-                    {selected.originalText || 'Chưa có nội dung.'}
+                  <div className="vs-history-text">
+                    {selected.originalText || 'No content available.'}
                   </div>
                 </div>
-              </div>
 
-              <div className="p-4 border-t border-gray-800 flex flex-wrap items-center gap-4">
-                {selected.audioUrl ? (
-                  <>
-                    <audio
-                      className="flex-1 min-w-[220px]"
-                      controls
-                      preload="metadata"
-                      src={selected.audioUrl}
-                    >
-                      Trình duyệt không hỗ trợ phát audio.
-                    </audio>
-                    <button
-                      className="vs-btn vs-btn--ghost"
-                      onClick={downloadAudio}
-                      disabled={downloading}
-                    >
-                      {downloading ? (
-                        <Loader2 size={15} className="animate-spin" />
-                      ) : (
-                        <Download size={15} />
-                      )}
-                      Tải audio
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-2 text-sm text-red-400">
-                    <AlertCircle size={16} /> Bản ghi này không có URL audio.
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </section>
+                <div className="vs-detail-footer">
+                  {selected.audioUrl ? (
+                    <>
+                      <audio controls preload="metadata" src={selected.audioUrl}>
+                        Your browser does not support audio playback.
+                      </audio>
+                      <button
+                        className="vs-btn vs-btn--secondary"
+                        onClick={downloadAudio}
+                        disabled={downloading}
+                      >
+                        {downloading
+                          ? <Loader2 size={15} className="spin" />
+                          : <Download size={15} />}
+                        Download audio
+                      </button>
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--vs-danger-light)', fontSize: 13 }}>
+                      <AlertCircle size={16} /> This record has no audio URL.
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        </div>
       </div>
 
       <Modal
         isOpen={Boolean(itemToDelete)}
         onClose={() => setItemToDelete(null)}
-        title="Delete TTS record"
-        description="Bạn có chắc muốn xoá bản ghi này không?"
+        title="Delete voice record"
+        description="This record and its audio will be permanently removed. This action cannot be undone."
         onConfirm={confirmDelete}
         confirmText="Delete"
         danger

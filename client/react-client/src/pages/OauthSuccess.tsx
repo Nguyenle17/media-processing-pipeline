@@ -25,9 +25,9 @@ export default function OAuthSuccess() {
     return () => { mounted = false; };
   }, [login, navigate]);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: 12, color: '#71717a', fontFamily: "'JetBrains Mono', monospace" }}>
+    <div className="vs-empty" style={{ minHeight: '60vh' }} aria-live="polite">
       <LoadingSpinner size={24} />
-      <span>Logging in...</span>
+      <span>Signing you in…</span>
     </div>
   );
 }

@@ -1,18 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUploadWithProgress } from '../hooks/useUploadWithProgress';
 import { useJobPolling } from '../hooks/useJobPolling';
 import ProgressRing from '../components/common/ProgressRing';
 import FileDropzone from '../components/common/FileDropzone';
 import ExportPanel from '../components/common/ExportPanel';
-import { RefreshCw, Wand2, UploadCloud } from 'lucide-react';
+import {
+  ArrowRight,
+  Download,
+  FileText,
+  Languages,
+  RefreshCw,
+  Sparkles,
+  UploadCloud,
+  Wand2,
+} from 'lucide-react';
 import { MODELS } from '../constants/models';
+import { LANGUAGES } from '../constants/languages';
 import RangeSlider from 'react-range-slider-input';
 import 'react-range-slider-input/dist/style.css';
 import Api from '../api/Api';
 
 export default function Home() {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const uploader = useUploadWithProgress();
   const poller = useJobPolling();
 
@@ -29,16 +40,12 @@ export default function Home() {
 
   const isWorking = uploader.isUploading || poller.isPolling;
 
-  // Gộp % upload (0-20%) và polling (20-100%) thành 1 dải liền mạch
+  // Merge upload (0-20%) and polling (20-100%) into one progress range
   const totalProgress = uploader.isUploading
     ? Math.round(uploader.progress * 0.2)
     : poller.isPolling
       ? Math.round(20 + poller.percentage * 0.8)
       : 0;
-
-  useEffect(() => {
-    // Initialization logic if any
-  }, []);
 
   const handleVideoLoaded = () => {
     if (videoRef.current) {
@@ -124,243 +131,247 @@ export default function Home() {
     setText(textOriginal);
   };
 
+  const activeModel = MODELS.find(
+    (item) => item.id === (localStorage.getItem('settings') || user?.settings || 'base'),
+  );
+
   return (
-    <div className="home-container fade-in">
-      <style>{`
-        .hero-section { text-align: center; padding: 4rem 2rem 3.5rem; background: #0a0a0f; position: relative; overflow: hidden; border-bottom: 1px solid #242831; }
-        .hero-title { font-size: 3.5rem; font-family: 'Syne', sans-serif; font-weight: 700; margin-bottom: 1rem; color: #fff; letter-spacing: -0.03em; }
-        .accent { color: #818cf8; }
-        .hero-sub { font-size: 1.125rem; color: #9ca3af; margin-bottom: 2rem; max-width: 600px; margin-inline: auto; line-height: 1.6; }
-        .cta-btn { display: inline-flex; align-items: center; padding: 0.75rem 1.35rem; background: #6366f1; color: white; border-radius: 0.35rem; font-weight: 600; text-decoration: none; transition: background 0.2s; border: none; cursor: pointer; }
-        .cta-btn:hover { background: #7477f2; }
-        .grid-bg { display: none; }
-        .stats-row { display: flex; justify-content: center; gap: 4rem; margin-top: 3.5rem; }
-        .stat-num { font-size: 2rem; font-weight: 700; color: #fff; font-family: 'Syne', sans-serif; }
-        .stat-lbl { color: #9ca3af; font-size: 0.85rem; margin-top: 0.25rem; letter-spacing: 0.05em; text-transform: uppercase; }
+    <div className="fade-in">
+      <section className="vs-hero">
+        <div className="vs-container">
+          <div className="vs-hero-grid">
+            <div>
+              <span className="vs-page-kicker"><Sparkles size={13} /> AI media workspace</span>
+              <h1 className="vs-hero-title">
+                Turn any video into <em>clean, editable text.</em>
+              </h1>
+              <p className="vs-hero-sub">
+                Transcribe speech, translate it into another language, and export the result.
+                One workspace for the whole workflow.
+              </p>
+              <div className="vs-hero-actions">
+                <button
+                  className="vs-btn vs-btn--primary vs-btn--lg"
+                  onClick={() => document.getElementById('studio')?.scrollIntoView({ behavior: 'smooth' })}
+                >
+                  Start transcribing <ArrowRight size={16} />
+                </button>
+                <Link to="/translate" className="vs-btn vs-btn--secondary vs-btn--lg">
+                  <Languages size={16} /> Translate a video
+                </Link>
+              </div>
+              <div className="vs-hero-meta">
+                <div><strong>{LANGUAGES.length}</strong><span>Languages</span></div>
+                <div><strong>{MODELS.length}</strong><span>Whisper models</span></div>
+                <div><strong>3</strong><span>Export formats</span></div>
+              </div>
+            </div>
 
-        /* Progress panel trong Result */
-        .progress-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 3rem 2rem;
-          gap: 1.25rem;
-          min-height: 320px;
-        }
-        .progress-title {
-          font-size: 1rem;
-          font-weight: 600;
-          color: #e5e7eb;
-        }
-        .progress-sub {
-          font-size: 0.85rem;
-          color: #9ca3af;
-          font-family: 'Inter', 'Segoe UI', sans-serif;
-          text-align: center;
-          max-width: 300px;
-          line-height: 1.5;
-        }
-        .progress-bar-track {
-          width: 100%;
-          max-width: 320px;
-          height: 6px;
-          background: rgba(99,102,241,0.15);
-          border-radius: 999px;
-          overflow: hidden;
-          margin-top: 0.25rem;
-        }
-        .progress-bar-fill {
-          height: 100%;
-          background: #6366f1;
-          border-radius: 999px;
-          transition: width 0.4s ease;
-          box-shadow: 0 0 12px rgba(99,102,241,0.6);
-        }
-        .phase-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          padding: 0.3rem 0.75rem;
-          background: rgba(99,102,241,0.1);
-          border: 1px solid rgba(99,102,241,0.3);
-          border-radius: 999px;
-          font-size: 0.75rem;
-          color: #a5b4fc;
-          font-family: 'Inter', 'Segoe UI', sans-serif;
-        }
-      `}</style>
-
-      <div className="hero-section">
-        <div className="absolute inset-0 grid-bg -z-10"></div>
-        <h1 className="hero-title">Media AI <span className="accent">Studio</span></h1>
-        <p className="hero-sub">Transcribe, translate, and synthesize media with high accuracy using state-of-the-art AI models.</p>
-        <button className="cta-btn" onClick={() => document.getElementById('studio')?.scrollIntoView({ behavior: 'smooth' })}>
-          Get Started
-        </button>
-        <div className="stats-row">
-          <div><div className="stat-num">99%</div><div className="stat-lbl">Accuracy</div></div>
-          <div><div className="stat-num">50+</div><div className="stat-lbl">Languages</div></div>
-          <div><div className="stat-num">2x</div><div className="stat-lbl">Faster</div></div>
+            <div className="vs-workflow" aria-hidden="true">
+              <div className="vs-workflow-head">
+                <span>Workflow</span>
+                <span className="vs-chip">Ready</span>
+              </div>
+              <div className="vs-workflow-steps">
+                <div className="vs-workflow-step">
+                  <span className="vs-workflow-step-icon"><UploadCloud size={15} /></span>
+                  <div>
+                    <strong>Upload source media</strong>
+                    <p>Video or audio, with an optional clip range.</p>
+                  </div>
+                </div>
+                <div className="vs-workflow-step">
+                  <span className="vs-workflow-step-icon"><Sparkles size={15} /></span>
+                  <div>
+                    <strong>Transcribe or translate</strong>
+                    <p>Pick a Whisper model and target language.</p>
+                  </div>
+                </div>
+                <div className="vs-workflow-step">
+                  <span className="vs-workflow-step-icon"><Download size={15} /></span>
+                  <div>
+                    <strong>Review and export</strong>
+                    <p>TXT, PDF, or DOCX — saved to your history.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="vs-transcript">
+                <div className="vs-transcript-row"><time>00:04</time><span>Welcome back to the product walkthrough.</span></div>
+                <div className="vs-transcript-row"><time>00:09</time><span>Today we will cover the new editing workflow.</span></div>
+                <div className="vs-transcript-row"><time>00:15</time><span>Everything starts from a single upload.</span></div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
       <div className="vs-feature-grid">
         <article className="vs-feature-card">
-          <h3 className="vs-feature-title">Speech to text</h3>
-          <p className="vs-feature-copy">Biến nội dung trong video thành transcript có cấu trúc, dễ đọc và dễ chỉnh sửa.</p>
+          <span className="vs-feature-index">01</span>
+          <div>
+            <h3 className="vs-feature-title">Speech to text</h3>
+            <p className="vs-feature-copy">Turn spoken video into a structured transcript you can edit and reuse.</p>
+          </div>
         </article>
         <article className="vs-feature-card">
-          <h3 className="vs-feature-title">Translate đa ngôn ngữ</h3>
-          <p className="vs-feature-copy">Tách riêng text gốc và bản dịch để bạn kiểm tra, xuất file hoặc tái sử dụng.</p>
+          <span className="vs-feature-index">02</span>
+          <div>
+            <h3 className="vs-feature-title">Translation, kept separate</h3>
+            <p className="vs-feature-copy">Compare the original text and the translated version side by side.</p>
+          </div>
         </article>
         <article className="vs-feature-card">
-          <h3 className="vs-feature-title">Quy trình rõ ràng</h3>
-          <p className="vs-feature-copy">Theo dõi tiến trình xử lý, xem lại lịch sử và quản lý kết quả trong một nơi.</p>
+          <span className="vs-feature-index">03</span>
+          <div>
+            <h3 className="vs-feature-title">A traceable workflow</h3>
+            <p className="vs-feature-copy">Every job is saved, so you can revisit or export it later.</p>
+          </div>
         </article>
       </div>
 
-      <div id="studio" className="vs-studio-grid p-6 max-w-7xl mx-auto">
-        {/* LEFT: Upload */}
-        <div className="vs-panel">
-          <div className="vs-panel-header">
-            <div className="flex items-center gap-2">
-              <span className="vs-panel-dot bg-indigo-500"></span>
-              <h2 className="vs-panel-title">Upload Video</h2>
-            </div>
+      <section id="studio" className="vs-container" style={{ paddingBlock: 'clamp(28px, 4vw, 44px)' }}>
+        <div className="vs-page-head">
+          <div className="vs-page-head__text">
+            <h2 className="vs-section-title">Transcription studio</h2>
+            <p className="vs-page-desc">Upload a video, choose a clip range, and run transcription.</p>
           </div>
-          <div className="vs-panel-body">
-            {!videoURL ? (
-              <FileDropzone
-                accept="video/*"
-                onChange={handleVideoChange}
-                file={videoFile}
-                label="Drop a video here, or click to browse"
-              />
-            ) : (
-              <div className="flex flex-col gap-4">
-                <video
-                  ref={videoRef}
-                  src={videoURL}
-                  controls
-                  className="w-full rounded-md border border-gray-800"
-                  onLoadedMetadata={handleVideoLoaded}
+          <span className="vs-chip"><FileText size={12} /> {activeModel?.label || 'Base'} model</span>
+        </div>
+
+        <div className="vs-studio-grid">
+          <div className="vs-panel">
+            <div className="vs-panel-header">
+              <div className="vs-panel-header__group">
+                <span className={`vs-panel-dot ${isWorking ? 'vs-panel-dot--warning' : ''}`} />
+                <h2 className="vs-panel-title">Source media</h2>
+              </div>
+              {videoFile && <span className="vs-panel-kicker">Ready</span>}
+            </div>
+            <div className="vs-panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {!videoURL ? (
+                <FileDropzone
+                  accept="video/*"
+                  onChange={handleVideoChange}
+                  file={videoFile}
+                  label="Drop a video here, or"
                 />
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-gray-400">
-                    <span>{formatTime(range[0])}</span>
-                    <span>{formatTime(range[1])}</span>
-                  </div>
-                  <RangeSlider
-                    min={0}
-                    max={duration}
-                    value={range}
-                    onInput={handleRangeChange}
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    src={videoURL}
+                    controls
+                    onLoadedMetadata={handleVideoLoaded}
                   />
-                </div>
 
-                <div className="flex gap-2">
-                  <select
-                    className="vs-search-input flex-1"
-                    value={mode}
-                    onChange={(e) => setMode(e.target.value)}
-                  >
-                    <option value="normal">Speech to Text</option>
-                    <option value="segments">Segments</option>
-                  </select>
+                  <div className="vs-field">
+                    <div className="vs-label">
+                      <span>Clip range</span>
+                      <span style={{ fontFamily: 'var(--vs-font-mono)', fontWeight: 400 }}>
+                        {formatTime(range[0])} – {formatTime(range[1])}
+                      </span>
+                    </div>
+                    <RangeSlider
+                      min={0}
+                      max={duration || 100}
+                      value={range}
+                      onInput={handleRangeChange}
+                    />
+                  </div>
+
+                  <div className="vs-field">
+                    <label className="vs-label" htmlFor="transcribe-mode">Output mode</label>
+                    <select
+                      id="transcribe-mode"
+                      className="vs-select"
+                      value={mode}
+                      onChange={(e) => setMode(e.target.value)}
+                    >
+                      <option value="normal">Speech to text</option>
+                      <option value="segments">Timestamped segments</option>
+                    </select>
+                  </div>
+
                   <button
-                    className="vs-submit-btn flex-1"
+                    className="vs-submit-btn"
                     onClick={handleSubmitVideo}
                     disabled={isWorking}
                   >
-                    {isWorking ? 'Processing...' : 'Start Processing'}
+                    {isWorking ? 'Processing…' : 'Start processing'}
+                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <span className="vs-hint">Active AI model</span>
+                    <span className="vs-model-chip">{activeModel?.label || 'Base'}</span>
+                  </div>
+                </>
+              )}
+              {error && (
+                <div className="vs-form-error" role="alert">{error}</div>
+              )}
+            </div>
+          </div>
+
+          <div className="vs-panel">
+            <div className="vs-panel-header">
+              <div className="vs-panel-header__group">
+                <span className={`vs-panel-dot ${isWorking ? 'vs-panel-dot--warning' : text ? 'vs-panel-dot--success' : 'vs-panel-dot--muted'}`} />
+                <h2 className="vs-panel-title">{isWorking ? 'Processing' : 'Transcript'}</h2>
+              </div>
+              {text && !isWorking && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="vs-btn vs-btn--ghost vs-btn--sm" onClick={handleReset}>
+                    <RefreshCw size={13} /> Reset
+                  </button>
+                  <button className="vs-btn vs-btn--primary vs-btn--sm" onClick={handleFixGrammar}>
+                    <Wand2 size={13} /> Fix grammar
                   </button>
                 </div>
-                <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-                  <span>AI model</span>
-                  <span className="vs-model-chip">
-                    {MODELS.find((item) => item.id === (localStorage.getItem('settings') || user?.settings || 'base'))?.label || 'Base'}
-                  </span>
-                </div>
-              </div>
-            )}
-            {error && <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
-          </div>
-        </div>
-
-        {/* RIGHT: Result / Progress */}
-        <div className="vs-panel flex flex-col">
-          <div className="vs-panel-header flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <span className={`vs-panel-dot ${isWorking ? 'bg-yellow-500' : 'bg-green-500'}`}></span>
-              <h2 className="vs-panel-title">
-                {isWorking ? 'Processing' : 'Result'}
-              </h2>
+              )}
             </div>
+
+            <div className="vs-panel-body" style={{ minHeight: 300 }} aria-live="polite">
+              {isWorking ? (
+                <div className="vs-progress">
+                  <ProgressRing percentage={totalProgress} size={96} strokeWidth={6} />
+                  <div className="vs-chip">
+                    {uploader.isUploading
+                      ? <><UploadCloud size={12} /> Uploading</>
+                      : <><Sparkles size={12} /> {poller.status || 'Processing'}</>}
+                  </div>
+                  <div className="vs-progress-title">
+                    {uploader.isUploading ? 'Uploading video…' : 'Processing with AI…'}
+                  </div>
+                  <div className="vs-progress-sub">
+                    {uploader.isUploading
+                      ? `Uploaded ${uploader.progress}%`
+                      : poller.status || 'This usually takes a moment.'}
+                  </div>
+                  <div className="vs-progress-track">
+                    <div className="vs-progress-fill" style={{ width: `${totalProgress}%` }} />
+                  </div>
+                </div>
+              ) : text ? (
+                <div className="vs-result-text">{text}</div>
+              ) : (
+                <div className="vs-empty">
+                  <FileText size={28} />
+                  <div>
+                    <strong style={{ color: 'var(--vs-text-muted)', fontWeight: 600 }}>Nothing transcribed yet</strong>
+                    <p style={{ marginTop: 4 }}>Your transcript will appear here when processing finishes.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {text && !isWorking && (
-              <div className="flex gap-2">
-                <button className="vs-btn vs-btn--ghost text-xs" onClick={handleReset}>
-                  <RefreshCw size={14} className="mr-1" /> Reset
-                </button>
-                <button className="vs-btn vs-btn--primary text-xs" onClick={handleFixGrammar}>
-                  <Wand2 size={14} className="mr-1" /> Fix Grammar
-                </button>
+              <div style={{ padding: '14px 18px', borderTop: '1px solid var(--vs-border)' }}>
+                <ExportPanel text={text} defaultFilename="transcription" />
               </div>
             )}
           </div>
-
-          <div className="vs-panel-body flex-1 overflow-y-auto vs-scroll min-h-[300px]">
-            {isWorking ? (
-              <div className="progress-state">
-                <ProgressRing
-                  percentage={totalProgress}
-                  size={96}
-                  strokeWidth={6}
-                  color="#6366f1"
-                />
-                <div className="phase-chip">
-                  {uploader.isUploading ? (
-                    <>
-                      <UploadCloud size={12} /> Uploading
-                    </>
-                  ) : (
-                    <>
-                      {poller.status || 'Processing'}
-                    </>
-                  )}
-                </div>
-                <div className="progress-title">
-                  {uploader.isUploading ? 'Uploading video...' : 'Processing with AI...'}
-                </div>
-                <div className="progress-sub">
-                  {uploader.isUploading
-                    ? `Uploaded ${uploader.progress}%`
-                    : poller.status || 'Please wait a moment'}
-                </div>
-                <div className="progress-bar-track">
-                  <div
-                    className="progress-bar-fill"
-                    style={{ width: `${totalProgress}%` }}
-                  />
-                </div>
-              </div>
-            ) : text ? (
-              <div className="vs-result-text p-4 whitespace-pre-wrap">{text}</div>
-            ) : (
-              <div className="vs-result-empty flex flex-col items-center justify-center h-full text-gray-500">
-                <p>Output will appear here</p>
-              </div>
-            )}
-          </div>
-
-          {text && !isWorking && (
-            <div className="p-4 border-t border-gray-800">
-              <ExportPanel text={text} defaultFilename="transcription" />
-            </div>
-          )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

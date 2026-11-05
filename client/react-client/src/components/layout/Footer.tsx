@@ -1,50 +1,55 @@
 import { Link } from 'react-router-dom';
+import { AudioLines } from 'lucide-react';
 
 export default function Footer() {
+  const year = new Date().getFullYear();
+
   return (
-    <footer style={{
-      background: 'rgba(255,255,255,0.02)',
-      borderTop: '1px solid rgba(255,255,255,0.06)',
-      padding: '40px 32px',
-      fontFamily: "'Inter', sans-serif",
-    }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 32 }}>
-        {/* Brand */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 4,
-              background: '#6366f1',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12,
-            }}>▶</div>
-            <span style={{ fontSize: 16, fontWeight: 800, color: '#f4f4f5' }}>VideoSub</span>
+    <footer className="vs-footer">
+      <div className="vs-container">
+        <div className="vs-footer-main">
+          <div className="vs-footer-brand">
+            <Link to="/" className="vs-brand" aria-label="VideoSub home">
+              <span className="vs-brand-mark"><AudioLines size={18} /></span>
+              <span className="vs-brand-name">VideoSub</span>
+            </Link>
+            <p className="vs-footer-desc">
+              AI-powered transcription, translation, and text-to-speech for video teams.
+            </p>
           </div>
-          <p style={{ fontSize: 12, color: '#3f3f46', maxWidth: 240, lineHeight: 1.6, fontFamily: "'JetBrains Mono', monospace" }}>
-            AI-powered video transcription and translation platform.
-          </p>
-        </div>
-        {/* Links columns */}
-        {[
-          { title: 'Product', links: [{ label: 'Transcribe', to: '/' }, { label: 'Translate', to: '/translate' }, { label: 'Text to Speech', to: '/extract-audio' }] },
-          { title: 'Account', links: [{ label: 'History', to: '/history' }, { label: 'Settings', to: '/settings' }] },
-        ].map((col) => (
-          <div key={col.title}>
-            <div style={{ fontSize: 11, color: '#52525b', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase' as const, letterSpacing: '0.12em', marginBottom: 14 }}>{col.title}</div>
-            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
-              {col.links.map((link) => (
-                <Link key={link.to} to={link.to} style={{ fontSize: 13, color: '#52525b', textDecoration: 'none', transition: 'color 0.15s' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = '#a5b4fc')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = '#52525b')}>
-                  {link.label}
-                </Link>
-              ))}
+
+          {[
+            {
+              title: 'Product',
+              links: [
+                { label: 'Transcribe', to: '/' },
+                { label: 'Translate', to: '/translate' },
+                { label: 'Text to speech', to: '/extract-audio' },
+              ],
+            },
+            {
+              title: 'Account',
+              links: [
+                { label: 'Translation history', to: '/history' },
+                { label: 'Voice history', to: '/tts-history' },
+                { label: 'Settings', to: '/settings' },
+              ],
+            },
+          ].map((col) => (
+            <div key={col.title}>
+              <div className="vs-footer-title">{col.title}</div>
+              <div className="vs-footer-links">
+                {col.links.map((link) => (
+                  <Link key={link.to} to={link.to}>{link.label}</Link>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-      <div style={{ maxWidth: 1200, margin: '24px auto 0', paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: '#27272a', fontFamily: "'JetBrains Mono', monospace" }}>© 2024 VideoSub. All rights reserved.</span>
+          ))}
+        </div>
+
+        <div className="vs-footer-bottom">
+          <span>© {year} VideoSub</span>
+        </div>
       </div>
     </footer>
   );

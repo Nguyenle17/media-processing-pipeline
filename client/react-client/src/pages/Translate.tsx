@@ -7,13 +7,22 @@ import FileDropzone from '../components/common/FileDropzone';
 import ExportPanel from '../components/common/ExportPanel';
 import LanguagePicker from '../components/common/LanguagePicker';
 import { LANGUAGES } from '../constants/languages';
-import { AlertCircle, UploadCloud, Sparkles, Languages, FileVideo, SlidersHorizontal, History } from 'lucide-react';
+import {
+  AlertCircle,
+  FileText,
+  FileVideo,
+  History,
+  Languages,
+  SlidersHorizontal,
+  Sparkles,
+  UploadCloud,
+} from 'lucide-react';
 import RangeSlider from 'react-range-slider-input';
 import 'react-range-slider-input/dist/style.css';
 import Api from '../api/Api';
 
 export default function Translate() {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const uploader = useUploadWithProgress();
   const poller = useJobPolling();
 
@@ -29,7 +38,7 @@ export default function Translate() {
 
   const isWorking = uploader.isUploading || poller.isPolling;
 
-  // Gộp % upload (0-20%) và polling (20-100%) thành 1 dải liền mạch
+  // Merge upload (0-20%) and polling (20-100%) into one progress range
   const totalProgress = uploader.isUploading
     ? Math.round(uploader.progress * 0.2)
     : poller.isPolling
@@ -110,204 +119,152 @@ export default function Translate() {
     }
   };
 
+  const targetLanguage = LANGUAGES.find((language) => language.code === targetLang);
+
   return (
-    <div className="translate-container fade-in p-6 max-w-7xl mx-auto">
-      <style>{`
-        .translate-hero { margin-bottom: 2rem; }
-
-        /* Progress panel trong Result */
-        .progress-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 3rem 2rem;
-          gap: 1.25rem;
-          min-height: 320px;
-        }
-        .progress-title {
-          font-size: 1rem;
-          font-weight: 600;
-          color: #e5e7eb;
-        }
-        .progress-sub {
-          font-size: 0.85rem;
-          color: #9ca3af;
-          font-family: 'Inter', 'Segoe UI', sans-serif;
-          text-align: center;
-          max-width: 300px;
-          line-height: 1.5;
-        }
-        .progress-bar-track {
-          width: 100%;
-          max-width: 320px;
-          height: 6px;
-          background: rgba(99,102,241,0.15);
-          border-radius: 4px;
-          overflow: hidden;
-          margin-top: 0.25rem;
-        }
-        .progress-bar-fill {
-          height: 100%;
-          background: #6366f1;
-          border-radius: 4px;
-          transition: width 0.4s ease;
-          box-shadow: 0 0 12px rgba(99,102,241,0.6);
-        }
-        .phase-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          padding: 0.3rem 0.75rem;
-          background: rgba(99,102,241,0.1);
-          border: 1px solid rgba(99,102,241,0.3);
-          border-radius: 4px;
-          font-size: 0.75rem;
-          color: #a5b4fc;
-          font-family: 'Inter', 'Segoe UI', sans-serif;
-        }
-      `}</style>
-
-      <div className="translate-hero">
-        <span className="vs-page-kicker"><Sparkles size={13} /> Assisted workflow</span>
-        <h1 className="vs-section-title text-3xl font-bold mb-2 flex items-center gap-3">
-          <Languages className="text-indigo-500" size={28} />
-          Video Translation
-        </h1>
-        <p className="text-gray-400">Translate spoken audio in videos to multiple languages.</p>
-      </div>
-
-      <div className="vs-info-strip">
-        <div className="vs-info-item"><div className="vs-info-icon"><FileVideo size={15} /></div><div><strong>Upload video</strong><span>MP4, MOV, WEBM và nhiều định dạng khác</span></div></div>
-        <div className="vs-info-item"><div className="vs-info-icon"><SlidersHorizontal size={15} /></div><div><strong>Chọn khoảng thời gian</strong><span>Chỉ xử lý đoạn nội dung bạn cần</span></div></div>
-        <div className="vs-info-item"><div className="vs-info-icon"><History size={15} /></div><div><strong>Tự động lưu lịch sử</strong><span>Xem lại text gốc và bản dịch bất cứ lúc nào</span></div></div>
-      </div>
-
-      <div className="vs-studio-grid">
-        {/* LEFT: Source media */}
-        <div className="vs-panel">
-          <div className="vs-panel-header">
-            <div className="flex items-center gap-2">
-              <span className="vs-panel-dot bg-indigo-500"></span>
-              <h2 className="vs-panel-title">Source Media & Language</h2>
-            </div>
-          </div>
-          <div className="vs-panel-body space-y-6">
-            {!videoURL ? (
-              <FileDropzone
-                accept="video/*"
-                onChange={handleVideoChange}
-                label="Drop a video here to translate"
-              />
-            ) : (
-              <div className="space-y-4">
-                <video
-                  ref={videoRef}
-                  src={videoURL}
-                  controls
-                  className="w-full rounded-md border border-gray-800"
-                  onLoadedMetadata={handleVideoLoaded}
-                />
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-gray-400">
-                    <span>{formatTime(range[0])}</span>
-                    <span>{formatTime(range[1])}</span>
-                  </div>
-                  <RangeSlider
-                    min={0}
-                    max={duration}
-                    value={range}
-                    onInput={handleRangeChange}
-                  />
-                </div>
-
-                <div>
-                  <label className="vs-section-label block mb-2">Target Language</label>
-                  <LanguagePicker
-                    languages={LANGUAGES}
-                    selected={targetLang}
-                    onSelect={setTargetLang}
-                  />
-                </div>
-
-                <button
-                  className="vs-submit-btn w-full"
-                  onClick={handleSubmitVideo}
-                  disabled={isWorking}
-                >
-                  {isWorking ? 'Processing...' : 'Start Translation'}
-                </button>
-              </div>
-            )}
+    <div className="vs-page fade-in">
+      <div className="vs-container">
+        <div className="vs-page-head">
+          <div className="vs-page-head__text">
+            <span className="vs-page-kicker"><Sparkles size={13} /> Assisted workflow</span>
+            <h1 className="vs-page-title"><Languages size={26} /> Video translation</h1>
+            <p className="vs-page-desc">Translate spoken audio into one of the supported languages, then review and export the result.</p>
           </div>
         </div>
 
-        {/* RIGHT: Result / Progress */}
-        <div className="vs-panel flex flex-col">
-          <div className="vs-panel-header">
-            <div className="flex items-center gap-2">
-              <span className={`vs-panel-dot ${isWorking ? 'bg-yellow-500' : 'bg-green-500'}`}></span>
-              <h2 className="vs-panel-title">
-                {isWorking ? 'Processing' : 'Translation Result'}
-              </h2>
+        <div className="vs-info-strip">
+          <div className="vs-info-item">
+            <div className="vs-info-icon"><FileVideo size={14} /></div>
+            <div><strong>Upload video</strong><span>MP4, MOV, WEBM, and more</span></div>
+          </div>
+          <div className="vs-info-item">
+            <div className="vs-info-icon"><SlidersHorizontal size={14} /></div>
+            <div><strong>Select a clip range</strong><span>Only process the section you need</span></div>
+          </div>
+          <div className="vs-info-item">
+            <div className="vs-info-icon"><History size={14} /></div>
+            <div><strong>Saved automatically</strong><span>Revisit original and translated text</span></div>
+          </div>
+        </div>
+
+        <div className="vs-studio-grid">
+          <div className="vs-panel">
+            <div className="vs-panel-header">
+              <div className="vs-panel-header__group">
+                <span className="vs-panel-dot" />
+                <h2 className="vs-panel-title">Source media & language</h2>
+              </div>
+              <span className="vs-panel-kicker">Step 1</span>
+            </div>
+            <div className="vs-panel-body vs-stack">
+              {!videoURL ? (
+                <FileDropzone
+                  accept="video/*"
+                  onChange={handleVideoChange}
+                  label="Drop a video here to translate, or"
+                />
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    src={videoURL}
+                    controls
+                    onLoadedMetadata={handleVideoLoaded}
+                  />
+
+                  <div className="vs-field">
+                    <div className="vs-label">
+                      <span>Clip range</span>
+                      <span style={{ fontFamily: 'var(--vs-font-mono)', fontWeight: 400 }}>
+                        {formatTime(range[0])} – {formatTime(range[1])}
+                      </span>
+                    </div>
+                    <RangeSlider
+                      min={0}
+                      max={duration || 100}
+                      value={range}
+                      onInput={handleRangeChange}
+                    />
+                  </div>
+
+                  <div className="vs-field">
+                    <span className="vs-label">
+                      <span>Target language</span>
+                      {targetLanguage && <span className="vs-model-chip">{targetLanguage.code.toUpperCase()}</span>}
+                    </span>
+                    <LanguagePicker
+                      languages={LANGUAGES}
+                      selected={targetLang}
+                      onSelect={setTargetLang}
+                    />
+                  </div>
+
+                  <button
+                    className="vs-submit-btn"
+                    onClick={handleSubmitVideo}
+                    disabled={isWorking}
+                  >
+                    {isWorking ? 'Processing…' : 'Start translation'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
-          <div className="vs-panel-body flex-1 overflow-y-auto vs-scroll min-h-[300px]">
-            {isWorking ? (
-              <div className="progress-state">
-                <ProgressRing
-                  percentage={totalProgress}
-                  size={96}
-                  strokeWidth={6}
-                  color="#6366f1"
-                />
-                <div className="phase-chip">
-                  {uploader.isUploading ? (
-                    <>
-                      <UploadCloud size={12} /> Uploading
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={12} /> {poller.status || 'Translating'}
-                    </>
-                  )}
-                </div>
-                <div className="progress-title">
-                  {uploader.isUploading ? 'Uploading video...' : 'Translating...'}
-                </div>
-                <div className="progress-sub">
-                  {uploader.isUploading
-                    ? `Uploaded ${uploader.progress}%`
-                    : poller.status || 'Please wait a moment'}
-                </div>
-                <div className="progress-bar-track">
-                  <div
-                    className="progress-bar-fill"
-                    style={{ width: `${totalProgress}%` }}
-                  />
-                </div>
+          <div className="vs-panel">
+            <div className="vs-panel-header">
+              <div className="vs-panel-header__group">
+                <span className={`vs-panel-dot ${isWorking ? 'vs-panel-dot--warning' : text ? 'vs-panel-dot--success' : 'vs-panel-dot--muted'}`} />
+                <h2 className="vs-panel-title">{isWorking ? 'Processing' : 'Translation result'}</h2>
               </div>
-            ) : error ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-red-300 text-center">
-                <AlertCircle size={36} />
-                <p>{error}</p>
-              </div>
-            ) : text ? (
-              <div className="vs-result-text p-4 whitespace-pre-wrap">{text}</div>
-            ) : (
-              <div className="vs-result-empty flex flex-col items-center justify-center h-full text-gray-500">
-                <p>Translated output will appear here</p>
+              <span className="vs-panel-kicker">Step 2</span>
+            </div>
+
+            <div className="vs-panel-body" style={{ minHeight: 300 }} aria-live="polite">
+              {isWorking ? (
+                <div className="vs-progress">
+                  <ProgressRing percentage={totalProgress} size={96} strokeWidth={6} />
+                  <div className="vs-chip">
+                    {uploader.isUploading
+                      ? <><UploadCloud size={12} /> Uploading</>
+                      : <><Sparkles size={12} /> {poller.status || 'Translating'}</>}
+                  </div>
+                  <div className="vs-progress-title">
+                    {uploader.isUploading ? 'Uploading video…' : 'Translating…'}
+                  </div>
+                  <div className="vs-progress-sub">
+                    {uploader.isUploading
+                      ? `Uploaded ${uploader.progress}%`
+                      : poller.status || 'This usually takes a moment.'}
+                  </div>
+                  <div className="vs-progress-track">
+                    <div className="vs-progress-fill" style={{ width: `${totalProgress}%` }} />
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="vs-empty" role="alert">
+                  <AlertCircle size={28} />
+                  <p style={{ color: 'var(--vs-danger-light)' }}>{error}</p>
+                </div>
+              ) : text ? (
+                <div className="vs-result-text">{text}</div>
+              ) : (
+                <div className="vs-empty">
+                  <FileText size={28} />
+                  <div>
+                    <strong style={{ color: 'var(--vs-text-muted)', fontWeight: 600 }}>No translation yet</strong>
+                    <p style={{ marginTop: 4 }}>The translated text will appear here.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {text && !isWorking && (
+              <div style={{ padding: '14px 18px', borderTop: '1px solid var(--vs-border)' }}>
+                <ExportPanel text={text} defaultFilename="translation" />
               </div>
             )}
           </div>
-
-          {text && !isWorking && (
-            <div className="p-4 border-t border-gray-800">
-              <ExportPanel text={text} defaultFilename="translation" />
-            </div>
-          )}
         </div>
       </div>
     </div>

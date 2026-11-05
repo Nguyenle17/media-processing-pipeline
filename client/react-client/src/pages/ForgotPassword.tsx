@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import Api from '../api/Api';
 
 // Update these two paths if the backend uses different endpoint names.
@@ -7,27 +8,6 @@ const REQUEST_RESET_ENDPOINT = '/auth/forgot-password';
 const RESET_PASSWORD_ENDPOINT = '/auth/reset-password';
 
 type Step = 'request' | 'reset' | 'success';
-
-const cardStyle = {
-    width: '100%',
-    maxWidth: '420px',
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: '20px',
-    padding: '32px',
-};
-
-const inputStyle = {
-    width: '100%',
-    boxSizing: 'border-box' as const,
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: '12px',
-    padding: '10px 14px',
-    fontSize: '14px',
-    color: '#fff',
-    outline: 'none',
-};
 
 export default function ForgotPassword() {
     const [step, setStep] = useState<Step>('request');
@@ -99,64 +79,104 @@ export default function ForgotPassword() {
     };
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 140px)', background: '#0a0a0f', padding: '32px 16px' }}>
-            <div style={cardStyle}>
+        <div className="vs-auth-page">
+            <div className="vs-auth-card">
                 {step === 'request' && (
                     <>
-                        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                            <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>Forgot password?</h2>
-                            <p style={{ fontSize: '14px', lineHeight: 1.5, color: '#a1a1aa', margin: 0 }}>Enter your email and we’ll send you a reset code.</p>
+                        <div className="vs-auth-head">
+                            <h1 className="vs-auth-title">Forgot password?</h1>
+                            <p className="vs-auth-desc">Enter your email and we'll send you a reset code.</p>
                         </div>
-                        <form onSubmit={requestCode} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: 500, color: '#71717a', fontFamily: "'JetBrains Mono', monospace" }}>
-                                Email
-                                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required style={{ ...inputStyle, marginTop: '6px' }} />
-                            </label>
+                        <form onSubmit={requestCode} className="vs-stack" style={{ gap: 14 }}>
+                            <div className="vs-field">
+                                <label className="vs-label" htmlFor="reset-email">Email</label>
+                                <input
+                                    id="reset-email"
+                                    type="email"
+                                    value={email}
+                                    onChange={(event) => setEmail(event.target.value)}
+                                    placeholder="you@example.com"
+                                    autoComplete="email"
+                                    className="vs-input"
+                                    required
+                                />
+                            </div>
                             {error && <ErrorMessage>{error}</ErrorMessage>}
-                            <SubmitButton loading={loading}>{loading ? 'Sending...' : 'Send reset code'}</SubmitButton>
+                            <SubmitButton loading={loading}>{loading ? 'Sending…' : 'Send reset code'}</SubmitButton>
                         </form>
                     </>
                 )}
 
                 {step === 'reset' && (
                     <>
-                        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                            <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#fff', marginBottom: '8px' }}>Reset your password</h2>
-                            <p style={{ fontSize: '14px', lineHeight: 1.5, color: '#a1a1aa', margin: 0 }}>Enter the code sent to <strong style={{ color: '#e4e4e7' }}>{email}</strong>, then choose a new password.</p>
+                        <div className="vs-auth-head">
+                            <h1 className="vs-auth-title">Reset your password</h1>
+                            <p className="vs-auth-desc">
+                                Enter the code sent to <strong style={{ color: 'var(--vs-text)' }}>{email}</strong>, then choose a new password.
+                            </p>
                         </div>
-                        <form onSubmit={resetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            <label style={{ fontSize: '12px', fontWeight: 500, color: '#71717a', fontFamily: "'JetBrains Mono', monospace" }}>
-                                Reset code
-                                <input type="text" value={code} onChange={(event) => setCode(event.target.value)} placeholder="Enter your code" autoComplete="one-time-code" required style={{ ...inputStyle, marginTop: '6px', letterSpacing: '2px' }} />
-                            </label>
-                            <label style={{ fontSize: '12px', fontWeight: 500, color: '#71717a', fontFamily: "'JetBrains Mono', monospace" }}>
-                                New password
-                                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required style={{ ...inputStyle, marginTop: '6px' }} />
-                            </label>
-                            <label style={{ fontSize: '12px', fontWeight: 500, color: '#71717a', fontFamily: "'JetBrains Mono', monospace" }}>
-                                Confirm password
-                                <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required style={{ ...inputStyle, marginTop: '6px' }} />
-                            </label>
+                        <form onSubmit={resetPassword} className="vs-stack" style={{ gap: 14 }}>
+                            <div className="vs-field">
+                                <label className="vs-label" htmlFor="reset-code">Reset code</label>
+                                <input
+                                    id="reset-code"
+                                    type="text"
+                                    value={code}
+                                    onChange={(event) => setCode(event.target.value)}
+                                    placeholder="Enter your code"
+                                    autoComplete="one-time-code"
+                                    className="vs-input"
+                                    style={{ letterSpacing: '2px' }}
+                                    required
+                                />
+                            </div>
+                            <div className="vs-field">
+                                <label className="vs-label" htmlFor="new-password">New password</label>
+                                <input
+                                    id="new-password"
+                                    type="password"
+                                    value={password}
+                                    onChange={(event) => setPassword(event.target.value)}
+                                    autoComplete="new-password"
+                                    className="vs-input"
+                                    required
+                                />
+                            </div>
+                            <div className="vs-field">
+                                <label className="vs-label" htmlFor="confirm-new-password">Confirm password</label>
+                                <input
+                                    id="confirm-new-password"
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={(event) => setConfirmPassword(event.target.value)}
+                                    autoComplete="new-password"
+                                    className="vs-input"
+                                    required
+                                />
+                            </div>
                             {notice && <NoticeMessage>{notice}</NoticeMessage>}
                             {error && <ErrorMessage>{error}</ErrorMessage>}
-                            <SubmitButton loading={loading}>{loading ? 'Updating...' : 'Update password'}</SubmitButton>
+                            <SubmitButton loading={loading}>{loading ? 'Updating…' : 'Update password'}</SubmitButton>
                         </form>
-                        <button type="button" onClick={resendCode} disabled={loading} style={{ display: 'block', margin: '18px auto 0', background: 'none', border: 'none', color: '#a5b4fc', cursor: loading ? 'not-allowed' : 'pointer', fontSize: '13px' }}>
-                            Resend code
-                        </button>
+                        <div style={{ marginTop: 14, textAlign: 'center' }}>
+                            <button type="button" onClick={resendCode} disabled={loading} className="vs-btn vs-btn--ghost vs-btn--sm">
+                                Resend code
+                            </button>
+                        </div>
                     </>
                 )}
 
                 {step === 'success' && (
                     <div style={{ textAlign: 'center' }}>
-                        <div style={{ width: '56px', height: '56px', margin: '0 auto 20px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'rgba(34,197,94,0.14)', color: '#4ade80', fontSize: '26px' }}>✓</div>
-                        <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#fff', marginBottom: '10px' }}>Password updated</h2>
-                        <p style={{ fontSize: '14px', lineHeight: 1.5, color: '#a1a1aa' }}>Your password has been changed successfully.</p>
+                        <div className="vs-icon-badge vs-icon-badge--success"><CheckCircle2 size={26} /></div>
+                        <h1 className="vs-auth-title">Password updated</h1>
+                        <p className="vs-auth-desc" style={{ marginBottom: 20 }}>Your password has been changed successfully.</p>
+                        <Link to="/login" className="vs-btn vs-btn--primary vs-btn--lg vs-btn--block">Continue to sign in</Link>
                     </div>
                 )}
 
-                <p style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px', color: '#a1a1aa' }}>
-                    <Link to="/login" style={{ color: '#a5b4fc', textDecoration: 'none', fontWeight: 500 }}>Back to sign in</Link>
+                <p className="vs-auth-footer">
+                    <Link to="/login">Back to sign in</Link>
                 </p>
             </div>
         </div>
@@ -164,13 +184,18 @@ export default function ForgotPassword() {
 }
 
 function ErrorMessage({ children }: { children: string }) {
-    return <div style={{ color: '#ef4444', fontSize: '12px', textAlign: 'center', background: 'rgba(239,68,68,0.1)', padding: '8px', borderRadius: '8px' }}>{children}</div>;
+    return (
+        <div className="vs-form-error" role="alert">
+            <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>{children}</span>
+        </div>
+    );
 }
 
 function NoticeMessage({ children }: { children: string }) {
-    return <div style={{ color: '#86efac', fontSize: '12px', textAlign: 'center', background: 'rgba(34,197,94,0.1)', padding: '8px', borderRadius: '8px' }}>{children}</div>;
+    return <div className="vs-form-notice" role="status">{children}</div>;
 }
 
 function SubmitButton({ children, loading }: { children: string; loading: boolean }) {
-    return <button type="submit" disabled={loading} style={{ width: '100%', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '6px', padding: '12px', fontSize: '14px', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>{children}</button>;
+    return <button type="submit" disabled={loading} className="vs-submit-btn">{children}</button>;
 }

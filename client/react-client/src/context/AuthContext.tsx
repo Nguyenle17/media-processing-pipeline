@@ -133,7 +133,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         finally { clearSession(); }
     };
 
-    if (loading) return null;
+    if (loading) return (
+        <div className="vs-boot" role="status" aria-live="polite">
+            <span className="vs-spinner" style={{ width: 28, height: 28 }} />
+            <span>Loading your workspace…</span>
+        </div>
+    );
     return (
         <AuthContext.Provider value={{ token, user, login, logout }}>
             {children}

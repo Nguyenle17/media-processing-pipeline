@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { AlertCircle, AlertTriangle, RefreshCw, Shield, User } from "lucide-react";
 import Api from "../api/Api";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import Pagination from "../components/common/Pagination";
 import Modal from "../components/common/Modal";
+import SearchInput from "../components/common/SearchInput";
 
 type User = {
     _id: string;
@@ -22,9 +24,9 @@ type PaginationInfo = {
 const ROLES = ['user', 'admin'] as const;
 type Role = typeof ROLES[number];
 
-const roleConfig: Record<Role, { color: string; bg: string; border: string }> = {
-    user: { color: '#a5b4fc', bg: 'rgba(99,102,241,0.12)', border: 'rgba(99,102,241,0.3)' },
-    admin: { color: '#fcd34d', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.3)' },
+const roleMeta: Record<Role, { label: string; icon: typeof Shield }> = {
+    user: { label: 'User', icon: User },
+    admin: { label: 'Admin', icon: Shield },
 };
 
 export default function AdminRoleUpdate() {
@@ -38,6 +40,7 @@ export default function AdminRoleUpdate() {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [filterRole, setFilterRole] = useState<'all' | Role>('all');
     const [confirmModal, setConfirmModal] = useState<{ user: User; newRole: Role } | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!search) fetchUsers(page);
@@ -53,6 +56,7 @@ export default function AdminRoleUpdate() {
 
     const fetchUsers = async (currentPage: number) => {
         setLoading(true);
+        setError(null);
         try {
             const data = await Api.get(`/admin/users?page=${currentPage}&limit=${limit}`);
             setUsers(data.users.map((u: any) => ({
@@ -60,12 +64,16 @@ export default function AdminRoleUpdate() {
                 role: u.role, isActivate: u.isActivate,
             })));
             setPagination({ total: data.total, totalPages: data.totalPages, page: data.page, limit: data.limit });
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err.message : 'Could not load users.');
+        }
         finally { setLoading(false); }
     };
 
     const searchUsers = async () => {
         setLoading(true);
+        setError(null);
         try {
             const data = await Api.get(`/admin/users/search/${encodeURIComponent(search)}`);
             setUsers(data.map((u: any) => ({
@@ -73,19 +81,20 @@ export default function AdminRoleUpdate() {
                 role: u.role, isActivate: u.isActivate,
             })));
             setPagination(prev => ({ ...prev, totalPages: 1, page: 1 }));
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err.message : 'Search failed.');
+        }
         finally { setLoading(false); }
     };
 
     const updateRole = async (user: User, newRole: Role) => {
-        console.log("Updating role for user:", user._id, "to role:", newRole);
         setActionLoading(user._id);
         setConfirmModal(null);
+        setError(null);
 
         try {
-            const res = await Api.patch(`/admin/user/${user._id}/role`, { role: newRole });
-            console.log("role updated:", res);
-
+            await Api.patch(`/admin/user/${user._id}/role`, { role: newRole });
             setUsers(prev =>
                 prev.map(u =>
                     u._id === user._id ? { ...u, role: newRole } : u
@@ -93,7 +102,7 @@ export default function AdminRoleUpdate() {
             );
         } catch (err) {
             console.error("update role error:", err);
-            alert("Update role failed");
+            setError(err instanceof Error ? err.message : 'Could not update this user\'s role.');
         } finally {
             setActionLoading(null);
         }
@@ -110,30 +119,24 @@ export default function AdminRoleUpdate() {
     };
 
     return (
-        <div style={{ background: '#0a0a0f', minHeight: '100vh', fontFamily: "'Syne', sans-serif", color: '#fff' }}>
-            <style>{`
-                .role-btn { padding: 5px 12px; border-radius: 7px; font-size: 11px; font-family: 'Inter', 'Segoe UI', sans-serif; cursor: pointer; border: 1px solid; transition: all 0.15s; font-weight: 500; }
-                .role-btn:hover { opacity: 0.8; transform: translateY(-1px); }
-                .role-btn.current { opacity: 0.4; cursor: default; transform: none !important; }
-            `}</style>
-
+        <div className="vs-page fade-in">
             <Modal
                 isOpen={!!confirmModal}
                 onClose={() => setConfirmModal(null)}
-                title="Change Role"
+                title="Change role"
                 description={confirmModal ? (
                     <>
-                        Change <strong style={{ color: '#fff' }}>{confirmModal.user.name}</strong>'s role from{' '}
-                        <span style={{ color: roleConfig[confirmModal.user.role as Role]?.color || '#a5b4fc' }}>
+                        Change <strong style={{ color: 'var(--vs-text)' }}>{confirmModal.user.name}</strong>'s role from{' '}
+                        <span className={`vs-badge ${confirmModal.user.role === 'admin' ? 'vs-badge--warning' : 'vs-badge--accent'}`}>
                             {confirmModal.user.role}
-                        </span>{' '}→{' '}
-                        <span style={{ color: roleConfig[confirmModal.newRole].color }}>
+                        </span>{' '}to{' '}
+                        <span className={`vs-badge ${confirmModal.newRole === 'admin' ? 'vs-badge--warning' : 'vs-badge--accent'}`}>
                             {confirmModal.newRole}
                         </span>?
                         {confirmModal.newRole === 'admin' && (
-                            <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, color: '#fcd34d', fontSize: 12 }}>
-                                ⚠ This user will have full admin access.
-                            </div>
+                            <span className="vs-form-notice" style={{ display: 'flex', marginTop: 12 }}>
+                                <AlertTriangle size={15} style={{ flexShrink: 0 }} /> This user will have full admin access.
+                            </span>
                         )}
                     </>
                 ) : ""}
@@ -141,25 +144,22 @@ export default function AdminRoleUpdate() {
                 confirmText="Confirm"
             />
 
-            <div style={{ maxWidth: 1200, margin: '0 auto', padding: '48px 32px' }}>
-                <p className="vs-section-label">
-                    // admin panel
-                </p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 28 }}>
-                    <div>
-                        <h1 className="vs-section-title">Role Management</h1>
-                        <p style={{ fontSize: 13, color: '#52525b', fontFamily: "'JetBrains Mono', monospace", marginTop: 4 }}>
+            <div className="vs-container">
+                <div className="vs-page-head">
+                    <div className="vs-page-head__text">
+                        <span className="vs-page-kicker">Admin</span>
+                        <h1 className="vs-page-title">Role management</h1>
+                        <p className="vs-page-desc">
                             {pagination.total} total users · {counts.admin} admins · {counts.user} users
                         </p>
                     </div>
-                    <button onClick={() => fetchUsers(page)} className="vs-btn vs-btn--ghost">
-                        ↻ Refresh
+                    <button onClick={() => fetchUsers(page)} className="vs-btn vs-btn--secondary">
+                        <RefreshCw size={14} /> Refresh
                     </button>
                 </div>
 
-                {/* Toolbar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                    <div className="vs-filter-group" style={{ margin: 0 }}>
+                <div className="vs-toolbar">
+                    <div className="vs-filter-group" role="group" aria-label="Filter by role">
                         {([
                             { key: 'all', label: `All (${counts.all})` },
                             { key: 'user', label: `Users (${counts.user})` },
@@ -168,26 +168,28 @@ export default function AdminRoleUpdate() {
                             <button key={f.key}
                                 className={`vs-filter-btn ${filterRole === f.key ? 'active' : ''}`}
                                 onClick={() => setFilterRole(f.key)}
+                                aria-pressed={filterRole === f.key}
                             >{f.label}</button>
                         ))}
                     </div>
-                    <input
-                        className="vs-search-input"
-                        placeholder="Search name or email..."
+                    <SearchInput
+                        placeholder="Search name or email…"
                         value={search}
-                        onChange={e => setSearch(e.target.value)}
+                        onChange={setSearch}
                     />
                 </div>
 
-                {/* Table */}
-                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, overflow: 'hidden' }}>
+                {error && <div className="vs-error-banner" role="alert"><AlertCircle size={15} /> {error}</div>}
+
+                <div className="vs-table-wrap">
                     {loading ? (
                         <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-                            <LoadingSpinner size={32} color="#6366f1" />
+                            <LoadingSpinner size={30} />
                         </div>
                     ) : filtered.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: 60, color: '#3f3f46', fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}>
-                            no users found
+                        <div className="vs-empty">
+                            <Shield size={28} />
+                            <p>No users match these filters.</p>
                         </div>
                     ) : (
                         <table className="vs-table">
@@ -195,71 +197,57 @@ export default function AdminRoleUpdate() {
                                 <tr>
                                     <th>User</th>
                                     <th>Email</th>
-                                    <th>Current Role</th>
+                                    <th>Current role</th>
                                     <th>Status</th>
-                                    <th>Change Role</th>
+                                    <th>Change role</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filtered.map(u => {
                                     const isLoading = actionLoading === u._id;
-                                    const avatarColor = u.role === 'admin' ? '#f59e0b' : '#6366f1';
-                                    const cfg = roleConfig[u.role as Role] ?? roleConfig.user;
-
                                     return (
                                         <tr key={u._id}>
-                                            {/* User */}
                                             <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                    <div className="vs-avatar" style={{ background: `${avatarColor}20`, color: avatarColor }}>
+                                                <div className="vs-table-user">
+                                                    <div className="vs-avatar">
                                                         {u.name?.[0]?.toUpperCase() || '?'}
                                                     </div>
-                                                    <span style={{ fontWeight: 600 }}>{u.name}</span>
+                                                    <span>{u.name}</span>
                                                 </div>
                                             </td>
 
-                                            {/* Email */}
-                                            <td style={{ color: '#71717a', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
-                                                {u.email}
-                                            </td>
+                                            <td className="vs-table-email">{u.email}</td>
 
-                                            {/* Current role */}
                                             <td>
-                                                <span className="vs-badge" style={{ background: cfg.bg, color: cfg.color }}>
+                                                <span className={`vs-badge ${u.role === 'admin' ? 'vs-badge--warning' : 'vs-badge--accent'}`}>
+                                                    {u.role === 'admin' ? <Shield size={12} /> : <User size={12} />}
                                                     {u.role}
                                                 </span>
                                             </td>
 
-                                            {/* Status */}
                                             <td>
-                                                <span className="vs-badge" style={{
-                                                    background: u.isActivate ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
-                                                    color: u.isActivate ? '#6ee7b7' : '#fca5a5',
-                                                }}>
-                                                    {u.isActivate ? '● Active' : '● Banned'}
+                                                <span className={`vs-badge ${u.isActivate ? 'vs-badge--success' : 'vs-badge--danger'}`}>
+                                                    <span className="vs-status-dot" />
+                                                    {u.isActivate ? 'Active' : 'Banned'}
                                                 </span>
                                             </td>
 
-                                            {/* Role buttons */}
                                             <td>
                                                 {isLoading ? (
-                                                    <LoadingSpinner size={18} color="#6366f1" />
+                                                    <LoadingSpinner size={18} />
                                                 ) : (
-                                                    <div style={{ display: 'flex', gap: 6 }}>
+                                                    <div className="vs-inline-actions-row">
                                                         {ROLES.map(role => {
+                                                            const MetaIcon = roleMeta[role].icon;
                                                             const isCurrent = u.role === role;
-                                                            const rc = roleConfig[role];
                                                             return (
                                                                 <button key={role}
-                                                                    className={`role-btn ${isCurrent ? 'current' : ''}`}
+                                                                    className="vs-btn vs-btn--ghost vs-btn--sm"
                                                                     disabled={isCurrent}
                                                                     onClick={() => setConfirmModal({ user: u, newRole: role })}
-                                                                    style={{
-                                                                        background: isCurrent ? rc.bg : 'transparent',
-                                                                        borderColor: isCurrent ? rc.border : 'rgba(255,255,255,0.1)',
-                                                                        color: isCurrent ? rc.color : '#52525b',
-                                                                    }}>
-                                                                    {isCurrent ? ' ' : ''}{role}
+                                                                    aria-label={`Change ${u.name}'s role to ${role}`}>
+                                                                    <MetaIcon size={13} />
+                                                                    {isCurrent ? 'Current' : roleMeta[role].label}
                                                                 </button>
                                                             );
                                                         })}
@@ -274,18 +262,15 @@ export default function AdminRoleUpdate() {
                     )}
                 </div>
 
-                {/* Pagination + footer */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-                    <span style={{ fontSize: 12, color: '#3f3f46', fontFamily: "'JetBrains Mono', monospace" }}>
-                        showing {filtered.length} / {pagination.total} users
-                    </span>
+                <div className="vs-table-footer">
+                    <span>Showing {filtered.length} of {pagination.total} users</span>
 
                     {!search && pagination.totalPages > 1 && (
-                        <Pagination 
-                            page={page} 
-                            totalPages={pagination.totalPages} 
-                            onPageChange={setPage} 
-                            delta={2} 
+                        <Pagination
+                            page={page}
+                            totalPages={pagination.totalPages}
+                            onPageChange={setPage}
+                            delta={2}
                         />
                     )}
                 </div>
